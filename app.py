@@ -252,11 +252,11 @@ def sellerboard_page():
     
     col1, col2, col3 = st.columns(3)
     with col1:
-        market_us = st.button("🇺🇸 US Market", use_container_width=True, type="primary")
+        market_us = st.button("🇺🇸 US Market", width="stretch", type="primary")
     with col2:
-        market_ca = st.button("🇨🇦 CA Market", use_container_width=True)
+        market_ca = st.button("🇨🇦 CA Market", width="stretch")
     with col3:
-        market_uk = st.button("🇬🇧 UK Market", use_container_width=True)
+        market_uk = st.button("🇬🇧 UK Market", width="stretch")
     
     # Determine selected market
     if market_ca:
@@ -293,7 +293,7 @@ def sellerboard_page():
     # Step 5: Process Files
     st.subheader("⚙️ Step 5: Process Files")
 
-    if st.button("🔄 Process Files", type="primary", use_container_width=True):
+    if st.button("🔄 Process Files", type="primary", width="stretch"):
         with st.spinner("Processing files..."):
             # Initialize processor
             processor = SBProcessor(credentials_dict, sheet_id, selected_market)
@@ -326,7 +326,7 @@ def sellerboard_page():
                 col1, col2, col3 = st.columns(3)
 
                 with col1:
-                    if st.button("📥 Export to Excel", use_container_width=True):
+                    if st.button("📥 Export to Excel", width="stretch"):
                         excel_data, filename = export_to_excel(result_df, selected_market)
                         st.download_button(
                             label="⬇️ Download Excel",
@@ -337,7 +337,7 @@ def sellerboard_page():
                         )
 
                 with col2:
-                    if st.button("☁️ Push to Google Sheets", use_container_width=True):
+                    if st.button("☁️ Push to Google Sheets", width="stretch"):
                         with st.spinner("Uploading to Google Sheets..."):
                             success = processor.append_to_sheets(result_df)
                             if success:
@@ -347,7 +347,7 @@ def sellerboard_page():
                                 st.error("❌ Upload failed")
 
                 with col3:
-                    if st.button("📤 Export Both", use_container_width=True):
+                    if st.button("📤 Export Both", width="stretch"):
                         excel_data, filename = export_to_excel(result_df, selected_market)
                         st.download_button(
                             label="⬇️ Download Excel",
