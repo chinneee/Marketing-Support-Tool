@@ -400,8 +400,8 @@ def main():
     st.sidebar.markdown("Select the tool you want to use:")
     
     page = st.sidebar.radio(
-        "",
-        [
+        label="Select a page",  # ⚠️ thêm label hợp lệ
+        options=[
             "📊 Sellerboard",
             "💰 PPC XNurta",
             "📺 DSP XNurta",
@@ -409,7 +409,7 @@ def main():
             "🔍 ASIN - Dimension",
             "🚀 Launching - Dimension"
         ],
-        label_visibility="collapsed"
+        label_visibility="collapsed"  # vẫn ẩn label đi
     )
     
     # Route to appropriate page
