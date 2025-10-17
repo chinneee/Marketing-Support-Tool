@@ -359,23 +359,33 @@ def sellerboard_page():
                             st.error(f"❌ Upload failed: {str(e)}")
 
                 with col3:
-                    if st.button("📤 Export Both", width="stretch"):
-                        excel_data, filename = export_to_excel(result_df, selected_market)
-                        st.download_button(
-                            label="⬇️ Download Excel",
-                            data=excel_data,
-                            file_name=filename,
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            width='stretch'
-                        )
-
-                        with st.spinner("Uploading to Google Sheets..."):
-                            success = processor.append_to_sheets(result_df)
-                            if success:
-                                st.success(f"✅ Uploaded {len(result_df)} rows to Google Sheets!")
-                                st.balloons()
-                            else:
-                                st.error("❌ Upload failed")
+                    export_both = st.button("📤 Export Both", width="stretch", key="export_both_btn")
+                    if export_both:
+                        try:
+                            # First handle Excel export
+                            excel_data, filename = export_to_excel(result_df, selected_market)
+                            
+                            # Then try Google Sheets upload
+                            with st.spinner("Uploading to Google Sheets..."):
+                                if processor and result_df is not None:
+                                    success = processor.append_to_sheets(result_df)
+                                    if success:
+                                        st.success(f"✅ Uploaded {len(result_df)} rows to Google Sheets!")
+                                        # Show Excel download button after successful upload
+                                        st.download_button(
+                                            label="⬇️ Download Excel",
+                                            data=excel_data,
+                                            file_name=filename,
+                                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                            width='stretch'
+                                        )
+                                        st.balloons()
+                                    else:
+                                        st.error("❌ Google Sheets upload failed")
+                                else:
+                                    st.error("❌ Please process files first")
+                        except Exception as e:
+                            st.error(f"❌ Export failed: {str(e)}")
             else:
                 st.error("❌ No data to process")
 
