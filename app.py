@@ -153,16 +153,17 @@ class SBProcessor:
 
     def append_to_sheets(self, df):
         """Append DataFrame to Google Sheets"""
+        import traceback
+
         if df.empty:
             st.warning("⚠️ No data to upload")
             return False
-        
+
         try:
             self._init_google_sheets()
             existing_rows = self.get_existing_sheet_data_count()
-            
-            start_row = existing_rows + 2
-            
+            start_row = max(existing_rows + 2, 2)
+
             values_to_append = []
             for _, row in df.iterrows():
                 row_values = []
@@ -172,19 +173,24 @@ class SBProcessor:
                         row_values.append("")
                     elif isinstance(val, (pd.Timestamp, datetime)):
                         row_values.append(val.strftime("%Y-%m-%d"))
+                    elif isinstance(val, (float, int)):
+                        row_values.append(str(val))
                     else:
-                        row_values.append(val)
+                        row_values.append(str(val))
                 values_to_append.append(row_values)
-            
-            end_col = chr(ord('A') + len(self.standard_columns) - 1)
+
+            # Safe range definition (supports more than 26 cols)
+            end_col_index = len(self.standard_columns)
+            end_col_letter = gspread.utils.rowcol_to_a1(1, end_col_index).split('1')[0].strip()
             end_row = start_row + len(df) - 1
-            range_name = f"A{start_row}:{end_col}{end_row}"
-            
+            range_name = f"A{start_row}:{end_col_letter}{end_row}"
+
             self.worksheet.update(range_name, values_to_append)
             return True
+
         except Exception as e:
             st.error(f"❌ Error uploading to Google Sheets: {e}")
-            st.text(traceback.format_exc())  # 👈 thêm dòng này
+            st.text(traceback.format_exc())  # debug chi tiết
             return False
 
 
