@@ -179,11 +179,22 @@ class SBProcessor:
             return False
 
 
-def load_credentials():
-    """Load Google Sheets credentials from Streamlit secrets"""
+def load_credentials_from_file(uploaded_file):
+    """Load Google Sheets credentials from uploaded JSON file"""
     try:
-        credentials_dict = dict(st.secrets["gcp_service_account"])
+        credentials_dict = json.load(uploaded_file)
+        
+        # Validate required fields
+        required_fields = ['type', 'project_id', 'private_key', 'client_email']
+        for field in required_fields:
+            if field not in credentials_dict:
+                st.error(f"❌ Missing required field: {field}")
+                return None
+        
         return credentials_dict
+    except json.JSONDecodeError:
+        st.error("❌ Invalid JSON file format")
+        return None
     except Exception as e:
         st.error(f"❌ Error loading credentials: {e}")
         return None
@@ -193,7 +204,52 @@ def sellerboard_page():
     """Sellerboard data upload page"""
     st.header("📊 Sellerboard Data Upload")
     
-    # Market selection
+    # Step 1: Upload credentials
+    st.subheader("🔐 Step 1: Upload Google Credentials")
+    
+    credentials_file = st.file_uploader(
+        "Upload your credential.json file",
+        type=['json'],
+        key="credentials_uploader",
+        help="Upload your Google Service Account credentials JSON file"
+    )
+    
+    credentials_dict = None
+    if credentials_file:
+        credentials_dict = load_credentials_from_file(credentials_file)
+        if credentials_dict:
+            st.success("✅ Credentials loaded successfully!")
+            with st.expander("📋 Credential Info"):
+                st.write(f"**Project ID:** {credentials_dict.get('project_id', 'N/A')}")
+                st.write(f"**Client Email:** {credentials_dict.get('client_email', 'N/A')}")
+        else:
+            st.error("❌ Failed to load credentials. Please check your JSON file.")
+            return
+    else:
+        st.warning("⚠️ Please upload credential.json file to continue")
+        st.info("💡 You need Google Service Account credentials to push data to Google Sheets")
+        return
+    
+    st.markdown("---")
+    
+    # Step 2: Enter Sheet ID
+    st.subheader("📝 Step 2: Enter Google Sheet ID")
+    
+    sheet_id = st.text_input(
+        "Google Sheet ID",
+        placeholder="1rqH3SePVbpwcj1oD4Bqaa40IbkyKUi7aRBThlBdnEu4",
+        help="Find this in your Google Sheet URL: docs.google.com/spreadsheets/d/{SHEET_ID}/edit"
+    )
+    
+    if not sheet_id:
+        st.warning("⚠️ Please enter Google Sheet ID to continue")
+        return
+    
+    st.markdown("---")
+    
+    # Step 3: Select Market
+    st.subheader("🌍 Step 3: Select Market")
+    
     col1, col2, col3 = st.columns(3)
     with col1:
         market_us = st.button("🇺🇸 US Market", use_container_width=True, type="primary")
@@ -212,7 +268,11 @@ def sellerboard_page():
     
     st.info(f"📍 Selected Market: **{selected_market}**")
     
-    # File upload
+    st.markdown("---")
+    
+    # Step 4: Upload data files
+    st.subheader("📂 Step 4: Upload Data Files")
+    
     uploaded_files = st.file_uploader(
         "Upload Excel files (DD_MM_YYYY format in filename)",
         type=['xlsx'],
@@ -228,20 +288,15 @@ def sellerboard_page():
             for file in uploaded_files:
                 st.text(f"• {file.name}")
         
-        # Process button
+        st.markdown("---")
+        
+        # Step 5: Process Files
+        st.subheader("⚙️ Step 5: Process Files")
+        
         if st.button("🔄 Process Files", type="primary", use_container_width=True):
             with st.spinner("Processing files..."):
-                # Load credentials
-                credentials = load_credentials()
-                if not credentials:
-                    st.error("❌ Failed to load credentials")
-                    return
-                
-                # Get sheet ID from secrets
-                sheet_id = st.secrets.get("sheet_id", "")
-                
                 # Initialize processor
-                processor = SBProcessor(credentials, sheet_id, selected_market)
+                processor = SBProcessor(credentials_dict, sheet_id, selected_market)
                 
                 # Process files
                 result_df, processed_files = processor.process_files(uploaded_files)
@@ -252,10 +307,12 @@ def sellerboard_page():
                     
                     # Preview data
                     with st.expander("👁️ Preview Data (First 10 rows)"):
-                        st.dataframe(result_df.head(10))
+                        st.dataframe(result_df.head(10), use_container_width=True)
                     
-                    # Action selection
-                    st.subheader("📤 Select Action")
+                    st.markdown("---")
+                    
+                    # Step 6: Action selection
+                    st.subheader("📤 Step 6: Select Action")
                     
                     col1, col2, col3 = st.columns(3)
                     
@@ -272,7 +329,8 @@ def sellerboard_page():
                                 label="⬇️ Download Excel",
                                 data=output,
                                 file_name=f"SB_{selected_market}_{timestamp}.xlsx",
-                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                use_container_width=True
                             )
                     
                     with col2:
@@ -281,6 +339,7 @@ def sellerboard_page():
                                 success = processor.append_to_sheets(result_df)
                                 if success:
                                     st.success(f"✅ Successfully uploaded {len(result_df)} rows!")
+                                    st.balloons()
                                 else:
                                     st.error("❌ Upload failed")
                     
@@ -297,7 +356,8 @@ def sellerboard_page():
                                 label="⬇️ Download Excel",
                                 data=output,
                                 file_name=f"SB_{selected_market}_{timestamp}.xlsx",
-                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                use_container_width=True
                             )
                             
                             # Google Sheets upload
@@ -305,27 +365,45 @@ def sellerboard_page():
                                 success = processor.append_to_sheets(result_df)
                                 if success:
                                     st.success(f"✅ Successfully uploaded {len(result_df)} rows!")
+                                    st.balloons()
                                 else:
                                     st.error("❌ Upload failed")
                 else:
                     st.error("❌ No data to process")
+    else:
+        st.info("📁 Please upload Excel files to continue")
 
 
 def main():
     st.set_page_config(
         page_title="Marketing Data Upload Tool",
         page_icon="📊",
-        layout="wide"
+        layout="wide",
+        initial_sidebar_state="expanded"
     )
     
+    # Custom CSS
+    st.markdown("""
+        <style>
+        .main {
+            padding-top: 2rem;
+        }
+        .stButton>button {
+            height: 3rem;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
     st.title("🚀 Marketing Data Upload Tool")
+    st.markdown("### Upload and manage your marketing data efficiently")
     st.markdown("---")
     
     # Sidebar navigation
     st.sidebar.title("📋 Navigation")
+    st.sidebar.markdown("Select the tool you want to use:")
     
     page = st.sidebar.radio(
-        "Select Tool:",
+        "",
         [
             "📊 Sellerboard",
             "💰 PPC XNurta",
@@ -333,7 +411,8 @@ def main():
             "📦 FBA Inventory",
             "🔍 ASIN - Dimension",
             "🚀 Launching - Dimension"
-        ]
+        ],
+        label_visibility="collapsed"
     )
     
     # Route to appropriate page
@@ -359,11 +438,22 @@ def main():
     st.sidebar.markdown("---")
     st.sidebar.info(
         "📝 **How to use:**\n\n"
-        "1. Select a tool from the menu\n"
-        "2. Choose market (for SB/PPC/DSP)\n"
-        "3. Upload your Excel files\n"
-        "4. Process and choose action\n\n"
-        "💡 Files must have DD_MM_YYYY format in filename"
+        "1. Upload credential.json file\n"
+        "2. Enter Google Sheet ID\n"
+        "3. Select market (US/CA/UK)\n"
+        "4. Upload your Excel files\n"
+        "5. Process and choose action\n\n"
+        "💡 **File Format:**\n"
+        "Files must have DD_MM_YYYY in filename\n"
+        "Example: report_15_10_2025.xlsx"
+    )
+    
+    st.sidebar.markdown("---")
+    st.sidebar.success(
+        "🔒 **Security:**\n\n"
+        "Your credentials are only stored\n"
+        "in memory during the session\n"
+        "and never saved to disk."
     )
 
 
