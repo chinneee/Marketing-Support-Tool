@@ -120,7 +120,9 @@ class SBProcessor:
             valid_dataframes = [df for df in all_dataframes if not df.empty and not df.isna().all().all()]
             
             if valid_dataframes:
-                merged_df = pd.concat(valid_dataframes, ignore_index=True, sort=False)
+                valid_dfs = [df for df in all_dataframes if not df.empty and not df.isna().all().all()]
+                merged_df = pd.concat(valid_dfs, ignore_index=True, sort=False)
+
             else:
                 st.warning("⚠️ All uploaded files are empty or invalid.")
                 return pd.DataFrame(), []
