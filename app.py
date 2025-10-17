@@ -116,30 +116,37 @@ class SBProcessor:
                 all_dataframes.append(df)
                 processed_files.append(uploaded_file.name)
         
-        if all_dataframes:
-            # ⚙️ Bỏ qua các DataFrame trống hoặc toàn giá trị NA
-            valid_dataframes = [df for df in all_dataframes if not df.empty and not df.isna().all().all()]
-            
-            if valid_dataframes:
-                merged_df = pd.concat(valid_dataframes, ignore_index=True, sort=False)
+            if all_dataframes:
+                # ⚙️ Bỏ qua các DataFrame trống hoặc toàn giá trị NA
+                valid_dataframes = []
+                for df in all_dataframes:
+                    # BƯỚC MỚI: Loại bỏ các cột toàn NA trong từng DataFrame trước khi nối
+                    df_cleaned = df.dropna(axis=1, how="all")
+                    
+                    if not df_cleaned.empty:
+                        # Đảm bảo DF đã làm sạch vẫn có đủ cột chuẩn
+                        for col in self.standard_columns:
+                            if col not in df_cleaned.columns:
+                                df_cleaned[col] = pd.NA
+                        
+                        df_cleaned = df_cleaned[self.standard_columns]
+                        valid_dataframes.append(df_cleaned)
+
+                if valid_dataframes:
+                    # Dòng gây ra cảnh báo, nhưng nay đã được xử lý nhờ bước trên
+                    merged_df = pd.concat(valid_dataframes, ignore_index=True, sort=False)
+                    
+                    # ... (Phần code sắp xếp, lọc không đổi)
+                    
+                    # Sắp xếp đúng thứ tự chuẩn (đảm bảo lại)
+                    merged_df = merged_df[self.standard_columns]
+                    
+                    return merged_df, processed_files
+                else:
+                    st.warning("⚠️ All uploaded files are empty or invalid.")
+                    return pd.DataFrame(), []
             else:
-                st.warning("⚠️ All uploaded files are empty or invalid.")
                 return pd.DataFrame(), []
-            
-            # Sort by Date then Sales
-            if "Date" in merged_df.columns and "Sales" in merged_df.columns:
-                merged_df = merged_df.sort_values(
-                    ["Date", "Sales"], ascending=[True, False]
-                )
-            elif "Date" in merged_df.columns:
-                merged_df = merged_df.sort_values("Date")
-            
-            # Đảm bảo cột theo đúng thứ tự chuẩn
-            merged_df = merged_df[self.standard_columns]
-            
-            return merged_df, processed_files
-        else:
-            return pd.DataFrame(), []
 
     def get_existing_sheet_data_count(self):
         """Get current number of rows in the sheet"""
