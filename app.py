@@ -290,86 +290,83 @@ def sellerboard_page():
         
         st.markdown("---")
         
-        # Step 5: Process Files
-        st.subheader("⚙️ Step 5: Process Files")
-        
-        if st.button("🔄 Process Files", type="primary", use_container_width=True):
-            with st.spinner("Processing files..."):
-                # Initialize processor
-                processor = SBProcessor(credentials_dict, sheet_id, selected_market)
-                
-                # Process files
-                result_df, processed_files = processor.process_files(uploaded_files)
-                
-                if not result_df.empty:
-                    st.success(f"✅ Successfully processed {len(processed_files)} files")
-                    st.info(f"📊 Total rows: {len(result_df)}")
-                    
-                    # Preview data
-                    with st.expander("👁️ Preview Data (First 10 rows)"):
-                        st.dataframe(result_df.head(10), use_container_width=True)
-                    
-                    st.markdown("---")
-                    
-                    # Step 6: Action selection
-                    st.subheader("📤 Step 6: Select Action")
-                    
-                    col1, col2, col3 = st.columns(3)
-                    
-                    with col1:
-                        if st.button("📥 Export to Excel", use_container_width=True):
-                            # Create Excel file
-                            output = io.BytesIO()
-                            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                                result_df.to_excel(writer, index=False, sheet_name='Data')
-                            output.seek(0)
-                            
-                            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                            st.download_button(
-                                label="⬇️ Download Excel",
-                                data=output,
-                                file_name=f"SB_{selected_market}_{timestamp}.xlsx",
-                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                use_container_width=True
-                            )
-                    
-                    with col2:
-                        if st.button("☁️ Push to Google Sheets", use_container_width=True):
-                            with st.spinner("Uploading to Google Sheets..."):
-                                success = processor.append_to_sheets(result_df)
-                                if success:
-                                    st.success(f"✅ Successfully uploaded {len(result_df)} rows!")
-                                    st.balloons()
-                                else:
-                                    st.error("❌ Upload failed")
-                    
-                    with col3:
-                        if st.button("📤 Both Excel & Sheets", use_container_width=True):
-                            # Excel download
-                            output = io.BytesIO()
-                            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                                result_df.to_excel(writer, index=False, sheet_name='Data')
-                            output.seek(0)
-                            
-                            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                            st.download_button(
-                                label="⬇️ Download Excel",
-                                data=output,
-                                file_name=f"SB_{selected_market}_{timestamp}.xlsx",
-                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                use_container_width=True
-                            )
-                            
-                            # Google Sheets upload
-                            with st.spinner("Uploading to Google Sheets..."):
-                                success = processor.append_to_sheets(result_df)
-                                if success:
-                                    st.success(f"✅ Successfully uploaded {len(result_df)} rows!")
-                                    st.balloons()
-                                else:
-                                    st.error("❌ Upload failed")
-                else:
-                    st.error("❌ No data to process")
+    # Step 5: Process Files
+    st.subheader("⚙️ Step 5: Process Files")
+
+    if st.button("🔄 Process Files", type="primary", use_container_width=True):
+        with st.spinner("Processing files..."):
+            # Initialize processor
+            processor = SBProcessor(credentials_dict, sheet_id, selected_market)
+            result_df, processed_files = processor.process_files(uploaded_files)
+            
+            if not result_df.empty:
+                st.success(f"✅ Successfully processed {len(processed_files)} files")
+                st.info(f"📊 Total rows: {len(result_df)}")
+
+                # Preview data
+                with st.expander("👁️ Preview Data (First 10 rows)"):
+                    st.dataframe(result_df.head(10), use_container_width=True)
+
+                st.markdown("---")
+
+                # Step 6: Action selection
+                st.subheader("📤 Step 6: Select Action")
+                st.caption("Choose how to export your processed data")
+
+                # --- Helper function ---
+                def export_to_excel(df, market):
+                    output = io.BytesIO()
+                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                        df.to_excel(writer, index=False, sheet_name='Data')
+                    output.seek(0)
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    return output, f"SB_{market}_{timestamp}.xlsx"
+
+                # --- Buttons layout ---
+                col1, col2, col3 = st.columns(3)
+
+                with col1:
+                    if st.button("📥 Export to Excel", use_container_width=True):
+                        excel_data, filename = export_to_excel(result_df, selected_market)
+                        st.download_button(
+                            label="⬇️ Download Excel",
+                            data=excel_data,
+                            file_name=filename,
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True
+                        )
+
+                with col2:
+                    if st.button("☁️ Push to Google Sheets", use_container_width=True):
+                        with st.spinner("Uploading to Google Sheets..."):
+                            success = processor.append_to_sheets(result_df)
+                            if success:
+                                st.success(f"✅ Uploaded {len(result_df)} rows to Google Sheets!")
+                                st.balloons()
+                            else:
+                                st.error("❌ Upload failed")
+
+                with col3:
+                    if st.button("📤 Export Both", use_container_width=True):
+                        excel_data, filename = export_to_excel(result_df, selected_market)
+                        st.download_button(
+                            label="⬇️ Download Excel",
+                            data=excel_data,
+                            file_name=filename,
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True
+                        )
+
+                        with st.spinner("Uploading to Google Sheets..."):
+                            success = processor.append_to_sheets(result_df)
+                            if success:
+                                st.success(f"✅ Uploaded {len(result_df)} rows to Google Sheets!")
+                                st.balloons()
+                            else:
+                                st.error("❌ Upload failed")
+            else:
+                st.error("❌ No data to process")
+
     else:
         st.info("📁 Please upload Excel files to continue")
 
