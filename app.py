@@ -8,6 +8,7 @@ from google.oauth2.service_account import Credentials
 import io
 import json
 from typing import List, Tuple
+import traceback
 
 
 class SBProcessor:
@@ -183,6 +184,7 @@ class SBProcessor:
             return True
         except Exception as e:
             st.error(f"❌ Error uploading to Google Sheets: {e}")
+            st.text(traceback.format_exc())  # 👈 thêm dòng này
             return False
 
 
