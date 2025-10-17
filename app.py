@@ -120,9 +120,7 @@ class SBProcessor:
             valid_dataframes = [df for df in all_dataframes if not df.empty and not df.isna().all().all()]
             
             if valid_dataframes:
-                valid_dfs = [df for df in all_dataframes if not df.empty and not df.isna().all().all()]
-                merged_df = pd.concat(valid_dfs, ignore_index=True, sort=False)
-
+                merged_df = pd.concat(valid_dataframes, ignore_index=True, sort=False)
             else:
                 st.warning("⚠️ All uploaded files are empty or invalid.")
                 return pd.DataFrame(), []
@@ -333,18 +331,16 @@ def sellerboard_page():
 
                 # --- Buttons layout ---
                 col1, col2, col3 = st.columns(3)
-
+                # Replace the export Excel button section with this:
                 with col1:
-                    if st.button("📥 Export to Excel", width="stretch"):
-                        excel_data, filename = export_to_excel(result_df, selected_market)
-                        st.download_button(
-                            label="⬇️ Download Excel",
-                            data=excel_data,
-                            file_name=filename,
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            width='stretch'
-                        )
-
+                    excel_data, filename = export_to_excel(result_df, selected_market)
+                    st.download_button(
+                        label="📥 Export to Excel",
+                        data=excel_data,
+                        file_name=filename,
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        width='stretch'
+                    )
                 with col2:
                     if st.button("☁️ Push to Google Sheets", width="stretch"):
                         with st.spinner("Uploading to Google Sheets..."):
