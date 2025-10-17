@@ -172,7 +172,8 @@ class SBProcessor:
                     if pd.isna(val):
                         row_values.append("")
                     elif isinstance(val, (pd.Timestamp, datetime)):
-                        row_values.append(val.strftime("%Y-%m-%d"))
+                        # Chỉnh sửa: Sử dụng định dạng MM/DD/YYYY
+                        row_values.append(val.strftime("%m/%d/%Y"))
                     elif isinstance(val, (float, int)):
                         row_values.append(str(val))
                     else:
