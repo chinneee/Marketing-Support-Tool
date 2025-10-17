@@ -305,7 +305,7 @@ def sellerboard_page():
 
                 # Preview data
                 with st.expander("👁️ Preview Data (First 10 rows)"):
-                    st.dataframe(result_df.head(10), use_container_width=True)
+                    st.dataframe(result_df.head(10), width='stretch')
 
                 st.markdown("---")
 
@@ -333,7 +333,7 @@ def sellerboard_page():
                             data=excel_data,
                             file_name=filename,
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            use_container_width=True
+                            width='stretch'
                         )
 
                 with col2:
@@ -354,7 +354,7 @@ def sellerboard_page():
                             data=excel_data,
                             file_name=filename,
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            use_container_width=True
+                            width='stretch'
                         )
 
                         with st.spinner("Uploading to Google Sheets..."):
