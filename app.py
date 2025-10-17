@@ -116,7 +116,14 @@ class SBProcessor:
                 processed_files.append(uploaded_file.name)
         
         if all_dataframes:
-            merged_df = pd.concat(all_dataframes, ignore_index=True, sort=False)
+            # ⚙️ Bỏ qua các DataFrame trống hoặc toàn giá trị NA
+            valid_dataframes = [df for df in all_dataframes if not df.empty and not df.isna().all().all()]
+            
+            if valid_dataframes:
+                merged_df = pd.concat(valid_dataframes, ignore_index=True, sort=False)
+            else:
+                st.warning("⚠️ All uploaded files are empty or invalid.")
+                return pd.DataFrame(), []
             
             # Sort by Date then Sales
             if "Date" in merged_df.columns and "Sales" in merged_df.columns:
