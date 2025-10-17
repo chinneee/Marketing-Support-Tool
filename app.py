@@ -342,14 +342,21 @@ def sellerboard_page():
                         width='stretch'
                     )
                 with col2:
-                    if st.button("☁️ Push to Google Sheets", width="stretch"):
-                        with st.spinner("Uploading to Google Sheets..."):
-                            success = processor.append_to_sheets(result_df)
-                            if success:
-                                st.success(f"✅ Uploaded {len(result_df)} rows to Google Sheets!")
-                                st.balloons()
-                            else:
-                                st.error("❌ Upload failed")
+                    push_to_sheets = st.button("☁️ Push to Google Sheets", width="stretch", key="push_sheets_btn")
+                    if push_to_sheets:
+                        try:
+                            with st.spinner("Uploading to Google Sheets..."):
+                                if processor and result_df is not None:
+                                    success = processor.append_to_sheets(result_df)
+                                    if success:
+                                        st.success(f"✅ Uploaded {len(result_df)} rows to Google Sheets!")
+                                        st.balloons()
+                                    else:
+                                        st.error("❌ Upload failed - Check your credentials and Sheet ID")
+                                else:
+                                    st.error("❌ Please process files first")
+                        except Exception as e:
+                            st.error(f"❌ Upload failed: {str(e)}")
 
                 with col3:
                     if st.button("📤 Export Both", width="stretch"):
