@@ -50,8 +50,7 @@ def main():
     elif page == "💰 PPC XNurta":
         ppc_xnurta_page()
     elif page == "📺 DSP XNurta":
-        st.info("🚧 DSP XNurta module - Coming soon...")
-        st.write("This module will be implemented next.")
+        dsp_xnurta_page()
     elif page == "📦 FBA Inventory":
         st.info("🚧 FBA Inventory module - Coming soon...")
         st.write("This module will be implemented next.")
