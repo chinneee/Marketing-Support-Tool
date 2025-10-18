@@ -1,5 +1,4 @@
 import streamlit as st
-import os
 import re
 import pandas as pd
 from datetime import datetime
@@ -7,7 +6,6 @@ import gspread
 from google.oauth2.service_account import Credentials
 import io
 import json
-from typing import List, Tuple
 import traceback
 
 
@@ -20,7 +18,7 @@ class SBProcessor:
         self.market = market
         self.worksheet_name = f"Raw_SB_H2_2025_{market}"
         
-        # Định nghĩa thứ tự cột chuẩn
+        # Define standard column order
         self.standard_columns = [
             'Product', 'ASIN', 'Date', 'SKU', 'Units', 'Refunds', 'Sales', 
             'Promo', 'Ads', 'Sponsored products (PPC)', '% Refunds', 
@@ -77,12 +75,12 @@ class SBProcessor:
         available_columns = [col for col in self.standard_columns if col in df.columns]
         df_filtered = df[available_columns].copy()
         
-        # Thêm các cột thiếu
+        # Add missing columns
         for col in self.standard_columns:
             if col not in df_filtered.columns:
                 df_filtered[col] = pd.NA
         
-        # Sắp xếp đúng thứ tự chuẩn
+        # Sort to the standard order
         df_filtered = df_filtered[self.standard_columns]
         return df_filtered
 
@@ -117,7 +115,7 @@ class SBProcessor:
                 processed_files.append(uploaded_file.name)
         
         if all_dataframes:
-            # ⚙️ Bỏ qua các DataFrame trống hoặc toàn giá trị NA
+            # Skip empty or all-NA DataFrames
             valid_dataframes = [df for df in all_dataframes if not df.empty and not df.isna().all().all()]
             
             if valid_dataframes:
@@ -134,7 +132,7 @@ class SBProcessor:
             elif "Date" in merged_df.columns:
                 merged_df = merged_df.sort_values("Date")
             
-            # Đảm bảo cột theo đúng thứ tự chuẩn
+            # Ensure columns are in the correct standard order
             merged_df = merged_df[self.standard_columns]
             
             return merged_df, processed_files
@@ -153,8 +151,6 @@ class SBProcessor:
 
     def append_to_sheets(self, df):
         """Append DataFrame to Google Sheets"""
-        import traceback
-
         if df.empty:
             st.warning("⚠️ No data to upload")
             return False
@@ -190,13 +186,14 @@ class SBProcessor:
 
         except Exception as e:
             st.error(f"❌ Error uploading to Google Sheets: {e}")
-            st.text(traceback.format_exc())  # debug chi tiết
+            st.text(traceback.format_exc())
             return False
 
 
 def load_credentials_from_file(uploaded_file):
     """Load Google Sheets credentials from uploaded JSON file"""
     try:
+        # Streamlit file_uploader returns a file-like object which can be read directly by json.load
         credentials_dict = json.load(uploaded_file)
         
         # Validate required fields
@@ -215,12 +212,26 @@ def load_credentials_from_file(uploaded_file):
         return None
 
 
+# Helper function for Excel export
+def export_to_excel(df, market):
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Data')
+    output.seek(0)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return output, f"SB_{market}_{timestamp}.xlsx"
+
+
 def sellerboard_page():
-    """Sellerboard data upload page"""
+    """Sellerboard data upload page - Streamlit UI"""
     st.header("📊 Sellerboard Data Upload")
     
     # Step 1: Upload credentials
     st.subheader("🔐 Step 1: Upload Google Credentials")
+    
+    # Use session state to persist credentials data
+    if 'credentials_dict' not in st.session_state:
+        st.session_state['credentials_dict'] = None
     
     credentials_file = st.file_uploader(
         "Upload your credential.json file",
@@ -229,21 +240,22 @@ def sellerboard_page():
         help="Upload your Google Service Account credentials JSON file"
     )
     
-    credentials_dict = None
     if credentials_file:
-        credentials_dict = load_credentials_from_file(credentials_file)
-        if credentials_dict:
-            st.success("✅ Credentials loaded successfully!")
-            with st.expander("📋 Credential Info"):
-                st.write(f"**Project ID:** {credentials_dict.get('project_id', 'N/A')}")
-                st.write(f"**Client Email:** {credentials_dict.get('client_email', 'N/A')}")
-        else:
-            st.error("❌ Failed to load credentials. Please check your JSON file.")
-            return
+        # Load credentials only if a new file is uploaded or state is None
+        if st.session_state['credentials_dict'] is None or credentials_file.uploaded_file_path != getattr(st.session_state.get('last_uploaded_cred_file'), 'uploaded_file_path', None):
+            credentials_file.seek(0) # Rewind the file pointer before loading
+            st.session_state['credentials_dict'] = load_credentials_from_file(credentials_file)
+            st.session_state['last_uploaded_cred_file'] = credentials_file # Store file reference to check for changes
+
+    if st.session_state['credentials_dict']:
+        st.success("✅ Credentials loaded successfully!")
+        with st.expander("📋 Credential Info"):
+            st.write(f"**Project ID:** {st.session_state['credentials_dict'].get('project_id', 'N/A')}")
+            st.write(f"**Client Email:** {st.session_state['credentials_dict'].get('client_email', 'N/A')}")
     else:
         st.warning("⚠️ Please upload credential.json file to continue")
         st.info("💡 You need Google Service Account credentials to push data to Google Sheets")
-        return
+        return # Stop execution if credentials are not loaded
     
     st.markdown("---")
     
@@ -253,7 +265,8 @@ def sellerboard_page():
     sheet_id = st.text_input(
         "Google Sheet ID",
         placeholder="1rqH3SePVbpwcj1oD4Bqaa40IbkyKUi7aRBThlBdnEu4",
-        help="Find this in your Google Sheet URL: docs.google.com/spreadsheets/d/{SHEET_ID}/edit"
+        help="Find this in your Google Sheet URL: docs.google.com/spreadsheets/d/{SHEET_ID}/edit",
+        key="sheet_id_input"
     )
     
     if not sheet_id:
@@ -266,21 +279,22 @@ def sellerboard_page():
     st.subheader("🌍 Step 3: Select Market")
     
     col1, col2, col3 = st.columns(3)
+    
+    # Use radio or selectbox for cleaner state management, but stick to buttons as per original
+    if 'selected_market' not in st.session_state:
+        st.session_state['selected_market'] = "US"
+        
+    def set_market(market):
+        st.session_state['selected_market'] = market
+
     with col1:
-        market_us = st.button("🇺🇸 US Market", width="stretch", type="primary")
+        st.button("🇺🇸 US Market", on_click=set_market, args=("US",), width="stretch", type="primary" if st.session_state['selected_market'] == "US" else "secondary")
     with col2:
-        market_ca = st.button("🇨🇦 CA Market", width="stretch")
+        st.button("🇨🇦 CA Market", on_click=set_market, args=("CA",), width="stretch", type="primary" if st.session_state['selected_market'] == "CA" else "secondary")
     with col3:
-        market_uk = st.button("🇬🇧 UK Market", width="stretch")
+        st.button("🇬🇧 UK Market", on_click=set_market, args=("UK",), width="stretch", type="primary" if st.session_state['selected_market'] == "UK" else "secondary")
     
-    # Determine selected market
-    if market_ca:
-        selected_market = "CA"
-    elif market_uk:
-        selected_market = "UK"
-    else:
-        selected_market = "US"
-    
+    selected_market = st.session_state['selected_market']
     st.info(f"📍 Selected Market: **{selected_market}**")
     
     st.markdown("---")
@@ -305,184 +319,91 @@ def sellerboard_page():
         
         st.markdown("---")
         
-    # Step 5: Process Files
-    st.subheader("⚙️ Step 5: Process Files")
+    # Step 5 & 6: Process and Action selection
+    st.subheader("⚙️ Step 5: Process Files & 📤 Step 6: Select Action")
 
     if st.button("🔄 Process Files", type="primary", width="stretch"):
+        if not uploaded_files:
+            st.warning("⚠️ Please upload files first.")
+            return
+
         with st.spinner("Processing files..."):
             # Initialize processor
-            processor = SBProcessor(credentials_dict, sheet_id, selected_market)
+            processor = SBProcessor(st.session_state['credentials_dict'], sheet_id, selected_market)
             result_df, processed_files = processor.process_files(uploaded_files)
             
             if not result_df.empty:
+                st.session_state['result_df'] = result_df
+                st.session_state['processor'] = processor
+                
                 st.success(f"✅ Successfully processed {len(processed_files)} files")
                 st.info(f"📊 Total rows: {len(result_df)}")
 
                 # Preview data
                 with st.expander("👁️ Preview Data (First 10 rows)"):
                     st.dataframe(result_df.head(10), width='stretch')
-
-                st.markdown("---")
-
-                # Step 6: Action selection
-                st.subheader("📤 Step 6: Select Action")
-                st.caption("Choose how to export your processed data")
-
-                # --- Helper function ---
-                def export_to_excel(df, market):
-                    output = io.BytesIO()
-                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                        df.to_excel(writer, index=False, sheet_name='Data')
-                    output.seek(0)
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    return output, f"SB_{market}_{timestamp}.xlsx"
-
-                # --- Buttons layout ---
-                col1, col2, col3 = st.columns(3)
-                # Replace the export Excel button section with this:
-                with col1:
-                    excel_data, filename = export_to_excel(result_df, selected_market)
-                    st.download_button(
-                        label="📥 Export to Excel",
-                        data=excel_data,
-                        file_name=filename,
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        width='stretch'
-                    )
-                with col2:
-                    push_to_sheets = st.button("☁️ Push to Google Sheets", width="stretch", key="push_sheets_btn")
-                    if push_to_sheets:
-                        try:
-                            with st.spinner("Uploading to Google Sheets..."):
-                                if processor and result_df is not None:
-                                    success = processor.append_to_sheets(result_df)
-                                    if success:
-                                        st.success(f"✅ Uploaded {len(result_df)} rows to Google Sheets!")
-                                        st.balloons()
-                                    else:
-                                        st.error("❌ Upload failed - Check your credentials and Sheet ID")
-                                else:
-                                    st.error("❌ Please process files first")
-                        except Exception as e:
-                            st.error(f"❌ Upload failed: {str(e)}")
-
-                with col3:
-                    export_both = st.button("📤 Export Both", width="stretch", key="export_both_btn")
-                    if export_both:
-                        try:
-                            # First handle Excel export
-                            excel_data, filename = export_to_excel(result_df, selected_market)
-                            
-                            # Then try Google Sheets upload
-                            with st.spinner("Uploading to Google Sheets..."):
-                                if processor and result_df is not None:
-                                    success = processor.append_to_sheets(result_df)
-                                    if success:
-                                        st.success(f"✅ Uploaded {len(result_df)} rows to Google Sheets!")
-                                        # Show Excel download button after successful upload
-                                        st.download_button(
-                                            label="⬇️ Download Excel",
-                                            data=excel_data,
-                                            file_name=filename,
-                                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                            width='stretch'
-                                        )
-                                        st.balloons()
-                                    else:
-                                        st.error("❌ Google Sheets upload failed")
-                                else:
-                                    st.error("❌ Please process files first")
-                        except Exception as e:
-                            st.error(f"❌ Export failed: {str(e)}")
+                
+                # Force a rerun to show the action buttons in the main flow
+                st.rerun() 
             else:
-                st.error("❌ No data to process")
+                st.error("❌ No valid data could be processed.")
+                st.session_state['result_df'] = pd.DataFrame() # Clear state
+                st.session_state['processor'] = None
+    
+    
+    # --- Action Buttons Section (Show only after processing) ---
+    if 'result_df' in st.session_state and not st.session_state['result_df'].empty:
+        result_df = st.session_state['result_df']
+        processor = st.session_state['processor']
+        
+        st.markdown("---")
+        st.caption("Choose how to export your processed data")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        # 1. Export to Excel
+        with col1:
+            excel_data, filename = export_to_excel(result_df, selected_market)
+            st.download_button(
+                label="📥 Export to Excel",
+                data=excel_data,
+                file_name=filename,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                width='stretch',
+                key="download_excel_btn"
+            )
+            
+        # 2. Push to Google Sheets
+        with col2:
+            push_to_sheets = st.button("☁️ Push to Google Sheets", width="stretch", key="push_sheets_btn")
+            if push_to_sheets:
+                try:
+                    with st.spinner("Uploading to Google Sheets..."):
+                        success = processor.append_to_sheets(result_df)
+                        if success:
+                            st.success(f"✅ Uploaded {len(result_df)} rows to Google Sheets!")
+                            st.balloons()
+                        else:
+                            st.error("❌ Upload failed - Check your credentials and Sheet ID")
+                except Exception as e:
+                    st.error(f"❌ Upload failed: {str(e)}")
 
-    else:
-        st.info("📁 Please upload Excel files to continue")
-
-
-def main():
-    st.set_page_config(
-        page_title="Marketing Data Upload Tool",
-        page_icon="📊",
-        layout="wide",
-        initial_sidebar_state="expanded"
-    )
+        # 3. Export Both (Only handle Sheets upload here, rely on the first button for Excel)
+        with col3:
+            export_both = st.button("📤 Export Both (Sheets & Excel)", width="stretch", key="export_both_btn")
+            if export_both:
+                try:
+                    with st.spinner("Uploading to Google Sheets..."):
+                        success = processor.append_to_sheets(result_df)
+                        if success:
+                            st.success(f"✅ Uploaded {len(result_df)} rows to Google Sheets!")
+                            st.info("Please use the 'Export to Excel' button to download the file.")
+                            st.balloons()
+                        else:
+                            st.error("❌ Google Sheets upload failed")
+                except Exception as e:
+                    st.error(f"❌ Export failed: {str(e)}")
     
-    # Custom CSS
-    st.markdown("""
-        <style>
-        .main {
-            padding-top: 2rem;
-        }
-        .stButton>button {
-            height: 3rem;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-    
-    st.title("🚀 Marketing Data Upload Tool")
-    st.markdown("### Upload and manage your marketing data efficiently")
-    st.markdown("---")
-    
-    # Sidebar navigation
-    st.sidebar.title("📋 Navigation")
-    st.sidebar.markdown("Select the tool you want to use:")
-    
-    page = st.sidebar.radio(
-        label="Select a page",  # ⚠️ thêm label hợp lệ
-        options=[
-            "📊 Sellerboard",
-            "💰 PPC XNurta",
-            "📺 DSP XNurta",
-            "📦 FBA Inventory",
-            "🔍 ASIN - Dimension",
-            "🚀 Launching - Dimension"
-        ],
-        label_visibility="collapsed"  # vẫn ẩn label đi
-    )
-    
-    # Route to appropriate page
-    if page == "📊 Sellerboard":
-        sellerboard_page()
-    elif page == "💰 PPC XNurta":
-        st.info("🚧 PPC XNurta module - Coming soon...")
-        st.write("This module will be implemented next.")
-    elif page == "📺 DSP XNurta":
-        st.info("🚧 DSP XNurta module - Coming soon...")
-        st.write("This module will be implemented next.")
-    elif page == "📦 FBA Inventory":
-        st.info("🚧 FBA Inventory module - Coming soon...")
-        st.write("This module will be implemented next.")
-    elif page == "🔍 ASIN - Dimension":
-        st.info("🚧 ASIN - Dimension module - Coming soon...")
-        st.write("This module will be implemented next.")
-    elif page == "🚀 Launching - Dimension":
-        st.info("🚧 Launching - Dimension module - Coming soon...")
-        st.write("This module will be implemented next.")
-    
-    # Footer
-    st.sidebar.markdown("---")
-    st.sidebar.info(
-        "📝 **How to use:**\n\n"
-        "1. Upload credential.json file\n"
-        "2. Enter Google Sheet ID\n"
-        "3. Select market (US/CA/UK)\n"
-        "4. Upload your Excel files\n"
-        "5. Process and choose action\n\n"
-        "💡 **File Format:**\n"
-        "Files must have DD_MM_YYYY in filename\n"
-        "Example: report_15_10_2025.xlsx"
-    )
-    
-    st.sidebar.markdown("---")
-    st.sidebar.success(
-        "🔒 **Security:**\n\n"
-        "Your credentials are only stored\n"
-        "in memory during the session\n"
-        "and never saved to disk."
-    )
-
-
-if __name__ == "__main__":
-    main()
+    elif 'result_df' in st.session_state and st.session_state['result_df'].empty:
+        # State exists but DataFrame is empty (e.g., after an invalid run)
+        pass # Do nothing, wait for the user to try processing again
