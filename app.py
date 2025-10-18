@@ -10,13 +10,15 @@ import json
 from typing import List, Tuple
 import traceback
 
-
 class SBProcessor:
     """Sellerboard Data Processor"""
     
     def __init__(self, credentials_dict, sheet_id, market):
         self.credentials_dict = credentials_dict
-        self.sheet_id = "1rqH3SePVbpwcj1oD4Bqaa40IbkyKUi7aRBThlBdnEu4"
+        # ❌ LỖI 1: Bạn đang hardcode sheet_id thay vì dùng parameter
+        # self.sheet_id = "1rqH3SePVbpwcj1oD4Bqaa40IbkyKUi7aRBThlBdnEu4"
+        # ✅ FIXED: Sử dụng parameter được truyền vào
+        self.sheet_id = sheet_id
         self.market = market
         self.worksheet_name = f"Raw_SB_H2_2025_{market}"
         
@@ -35,25 +37,48 @@ class SBProcessor:
         
     def _init_google_sheets(self):
         """Initialize Google Sheets connection"""
-        if self.client is None:
-            scopes = [
-                "https://www.googleapis.com/auth/spreadsheets",
-                "https://www.googleapis.com/auth/drive"
-            ]
-            creds = Credentials.from_service_account_info(
-                self.credentials_dict, scopes=scopes
-            )
-            self.client = gspread.authorize(creds)
-            self.spreadsheet = self.client.open_by_key(self.sheet_id)
-            self.worksheet = self.spreadsheet.worksheet(self.worksheet_name)
-
+        try:
+            if self.client is None:
+                st.info(f"🔄 Connecting to Google Sheets: {self.sheet_id}")
+                st.info(f"📋 Looking for worksheet: {self.worksheet_name}")
+                
+                scopes = [
+                    "https://www.googleapis.com/auth/spreadsheets",
+                    "https://www.googleapis.com/auth/drive"
+                ]
+                creds = Credentials.from_service_account_info(
+                    self.credentials_dict, scopes=scopes
+                )
+                self.client = gspread.authorize(creds)
+                self.spreadsheet = self.client.open_by_key(self.sheet_id)
+                
+                # Try to get worksheet, if not exists, create it
+                try:
+                    self.worksheet = self.spreadsheet.worksheet(self.worksheet_name)
+                    st.success(f"✅ Found worksheet: {self.worksheet_name}")
+                except gspread.exceptions.WorksheetNotFound:
+                    st.warning(f"⚠️ Worksheet '{self.worksheet_name}' not found. Creating new one...")
+                    self.worksheet = self.spreadsheet.add_worksheet(
+                        title=self.worksheet_name,
+                        rows="1000",
+                        cols="30"
+                    )
+                    # Add headers
+                    self.worksheet.update('A1', [self.standard_columns])
+                    st.success(f"✅ Created new worksheet: {self.worksheet_name}")
+                    
+        except Exception as e:
+            st.error(f"❌ Error initializing Google Sheets: {e}")
+            st.text(traceback.format_exc())
+            raise
+    
     def extract_date_from_filename(self, filename):
         """Extract first DD_MM_YYYY pattern from filename"""
         match = re.search(r"(\d{2}_\d{2}_\d{4})", filename)
         if match:
             return datetime.strptime(match.group(1), "%d_%m_%Y").date()
         return None
-
+    
     def _standardize_columns(self, df):
         """Standardize and select only required columns"""
         df.columns = [str(c).strip() for c in df.columns]
@@ -85,7 +110,7 @@ class SBProcessor:
         # Sắp xếp đúng thứ tự chuẩn
         df_filtered = df_filtered[self.standard_columns]
         return df_filtered
-
+    
     def process_single_excel(self, file_content, filename):
         """Process a single Excel file and return DataFrame with Date column"""
         try:
@@ -103,7 +128,7 @@ class SBProcessor:
         except Exception as e:
             st.error(f"⚠️ Error processing {filename}: {e}")
             return pd.DataFrame()
-
+    
     def process_files(self, uploaded_files):
         """Process multiple uploaded files"""
         all_dataframes = []
@@ -116,61 +141,70 @@ class SBProcessor:
                 all_dataframes.append(df)
                 processed_files.append(uploaded_file.name)
         
-            if all_dataframes:
-                # ⚙️ Bỏ qua các DataFrame trống hoặc toàn giá trị NA
-                valid_dataframes = []
-                for df in all_dataframes:
-                    # BƯỚC MỚI: Loại bỏ các cột toàn NA trong từng DataFrame trước khi nối
-                    df_cleaned = df.dropna(axis=1, how="all")
+        if all_dataframes:
+            # ❌ LỖI 2: Indentation sai - phần code này nằm trong vòng lặp for
+            # ✅ FIXED: Di chuyển ra ngoài vòng lặp
+            valid_dataframes = []
+            for df in all_dataframes:
+                df_cleaned = df.dropna(axis=1, how="all")
+                
+                if not df_cleaned.empty:
+                    for col in self.standard_columns:
+                        if col not in df_cleaned.columns:
+                            df_cleaned[col] = pd.NA
                     
-                    if not df_cleaned.empty:
-                        # Đảm bảo DF đã làm sạch vẫn có đủ cột chuẩn
-                        for col in self.standard_columns:
-                            if col not in df_cleaned.columns:
-                                df_cleaned[col] = pd.NA
-                        
-                        df_cleaned = df_cleaned[self.standard_columns]
-                        valid_dataframes.append(df_cleaned)
-
-                if valid_dataframes:
-                    # Dòng gây ra cảnh báo, nhưng nay đã được xử lý nhờ bước trên
-                    merged_df = pd.concat(valid_dataframes, ignore_index=True, sort=False)
-                    
-                    # ... (Phần code sắp xếp, lọc không đổi)
-                    
-                    # Sắp xếp đúng thứ tự chuẩn (đảm bảo lại)
-                    merged_df = merged_df[self.standard_columns]
-                    
-                    return merged_df, processed_files
-                else:
-                    st.warning("⚠️ All uploaded files are empty or invalid.")
-                    return pd.DataFrame(), []
+                    df_cleaned = df_cleaned[self.standard_columns]
+                    valid_dataframes.append(df_cleaned)
+            
+            if valid_dataframes:
+                merged_df = pd.concat(valid_dataframes, ignore_index=True, sort=False)
+                
+                # Sort by Date then Sales
+                if "Date" in merged_df.columns and "Sales" in merged_df.columns:
+                    merged_df = merged_df.sort_values(
+                        ["Date", "Sales"], ascending=[True, False]
+                    )
+                elif "Date" in merged_df.columns:
+                    merged_df = merged_df.sort_values("Date")
+                
+                # Sắp xếp đúng thứ tự chuẩn
+                merged_df = merged_df[self.standard_columns]
+                
+                return merged_df, processed_files
             else:
+                st.warning("⚠️ All uploaded files are empty or invalid.")
                 return pd.DataFrame(), []
-
+        else:
+            return pd.DataFrame(), []
+    
     def get_existing_sheet_data_count(self):
         """Get current number of rows in the sheet"""
         try:
             all_values = self.worksheet.col_values(1)
             data_rows = len([val for val in all_values if val.strip()]) - 1 if all_values else 0
+            st.info(f"📊 Existing rows in sheet: {data_rows}")
             return data_rows
         except Exception as e:
             st.error(f"⚠️ Error getting sheet data count: {e}")
             return 0
-
+    
     def append_to_sheets(self, df):
         """Append DataFrame to Google Sheets"""
-        import traceback
-
         if df.empty:
             st.warning("⚠️ No data to upload")
             return False
-
+        
         try:
+            st.info(f"📤 Starting upload of {len(df)} rows...")
+            
+            # Initialize connection
             self._init_google_sheets()
+            
             existing_rows = self.get_existing_sheet_data_count()
             start_row = max(existing_rows + 2, 2)
-
+            
+            st.info(f"📍 Will upload to row {start_row}")
+            
             values_to_append = []
             for _, row in df.iterrows():
                 row_values = []
@@ -179,28 +213,32 @@ class SBProcessor:
                     if pd.isna(val):
                         row_values.append("")
                     elif isinstance(val, (pd.Timestamp, datetime)):
-                        # Chỉnh sửa: Sử dụng định dạng MM/DD/YYYY
                         row_values.append(val.strftime("%m/%d/%Y"))
                     elif isinstance(val, (float, int)):
                         row_values.append(str(val))
                     else:
                         row_values.append(str(val))
                 values_to_append.append(row_values)
-
-            # Safe range definition (supports more than 26 cols)
+            
+            # Safe range definition
             end_col_index = len(self.standard_columns)
             end_col_letter = gspread.utils.rowcol_to_a1(1, end_col_index).split('1')[0].strip()
             end_row = start_row + len(df) - 1
             range_name = f"A{start_row}:{end_col_letter}{end_row}"
-
+            
+            st.info(f"📊 Uploading to range: {range_name}")
+            
+            # Upload data
             self.worksheet.update(range_name, values_to_append)
+            
+            st.success(f"✅ Successfully uploaded {len(df)} rows!")
             return True
-
+            
         except Exception as e:
             st.error(f"❌ Error uploading to Google Sheets: {e}")
-            st.text(traceback.format_exc())  # debug chi tiết
+            st.text("Full error trace:")
+            st.text(traceback.format_exc())
             return False
-
 
 def load_credentials_from_file(uploaded_file):
     """Load Google Sheets credentials from uploaded JSON file"""
@@ -221,7 +259,6 @@ def load_credentials_from_file(uploaded_file):
     except Exception as e:
         st.error(f"❌ Error loading credentials: {e}")
         return None
-
 
 def sellerboard_page():
     """Sellerboard data upload page"""
@@ -258,9 +295,10 @@ def sellerboard_page():
     # Step 2: Enter Sheet ID
     st.subheader("📝 Step 2: Enter Google Sheet ID")
     
+    # ✅ FIXED: Thêm giá trị mặc định
     sheet_id = st.text_input(
         "Google Sheet ID",
-        placeholder="1rqH3SePVbpwcj1oD4Bqaa40IbkyKUi7aRBThlBdnEu4",
+        value="1rqH3SePVbpwcj1oD4Bqaa40IbkyKUi7aRBThlBdnEu4",  # Giá trị mặc định
         help="Find this in your Google Sheet URL: docs.google.com/spreadsheets/d/{SHEET_ID}/edit"
     )
     
@@ -273,22 +311,25 @@ def sellerboard_page():
     # Step 3: Select Market
     st.subheader("🌍 Step 3: Select Market")
     
+    # ✅ FIXED: Sử dụng session_state để lưu market đã chọn
+    if 'selected_market' not in st.session_state:
+        st.session_state.selected_market = "US"
+    
     col1, col2, col3 = st.columns(3)
     with col1:
-        market_us = st.button("🇺🇸 US Market", width="stretch", type="primary")
+        if st.button("🇺🇸 US Market", use_container_width=True, 
+                    type="primary" if st.session_state.selected_market == "US" else "secondary"):
+            st.session_state.selected_market = "US"
     with col2:
-        market_ca = st.button("🇨🇦 CA Market", width="stretch")
+        if st.button("🇨🇦 CA Market", use_container_width=True,
+                    type="primary" if st.session_state.selected_market == "CA" else "secondary"):
+            st.session_state.selected_market = "CA"
     with col3:
-        market_uk = st.button("🇬🇧 UK Market", width="stretch")
+        if st.button("🇬🇧 UK Market", use_container_width=True,
+                    type="primary" if st.session_state.selected_market == "UK" else "secondary"):
+            st.session_state.selected_market = "UK"
     
-    # Determine selected market
-    if market_ca:
-        selected_market = "CA"
-    elif market_uk:
-        selected_market = "UK"
-    else:
-        selected_market = "US"
-    
+    selected_market = st.session_state.selected_market
     st.info(f"📍 Selected Market: **{selected_market}**")
     
     st.markdown("---")
@@ -306,108 +347,98 @@ def sellerboard_page():
     if uploaded_files:
         st.success(f"✅ {len(uploaded_files)} file(s) uploaded")
         
-        # Show uploaded files
         with st.expander("📁 Uploaded Files"):
             for file in uploaded_files:
                 st.text(f"• {file.name}")
         
         st.markdown("---")
         
-    # Step 5: Process Files
-    st.subheader("⚙️ Step 5: Process Files")
-
-    if st.button("🔄 Process Files", type="primary", width="stretch"):
-        with st.spinner("Processing files..."):
-            # Initialize processor
-            processor = SBProcessor(credentials_dict, sheet_id, selected_market)
-            result_df, processed_files = processor.process_files(uploaded_files)
-            
-            if not result_df.empty:
-                st.success(f"✅ Successfully processed {len(processed_files)} files")
-                st.info(f"📊 Total rows: {len(result_df)}")
-
-                # Preview data
-                with st.expander("👁️ Preview Data (First 10 rows)"):
-                    st.dataframe(result_df.head(10), width='stretch')
-
-                st.markdown("---")
-
-                # Step 6: Action selection
-                st.subheader("📤 Step 6: Select Action")
-                st.caption("Choose how to export your processed data")
-
-                # --- Helper function ---
-                def export_to_excel(df, market):
-                    output = io.BytesIO()
-                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                        df.to_excel(writer, index=False, sheet_name='Data')
-                    output.seek(0)
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    return output, f"SB_{market}_{timestamp}.xlsx"
-
-                # --- Buttons layout ---
-                col1, col2, col3 = st.columns(3)
-                # Replace the export Excel button section with this:
-                with col1:
-                    excel_data, filename = export_to_excel(result_df, selected_market)
-                    st.download_button(
-                        label="📥 Export to Excel",
-                        data=excel_data,
-                        file_name=filename,
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        width='stretch'
-                    )
-                with col2:
-                    push_to_sheets = st.button("☁️ Push to Google Sheets", width="stretch", key="push_sheets_btn")
-                    if push_to_sheets:
-                        try:
-                            with st.spinner("Uploading to Google Sheets..."):
-                                if processor and result_df is not None:
-                                    success = processor.append_to_sheets(result_df)
-                                    if success:
-                                        st.success(f"✅ Uploaded {len(result_df)} rows to Google Sheets!")
-                                        st.balloons()
-                                    else:
-                                        st.error("❌ Upload failed - Check your credentials and Sheet ID")
-                                else:
-                                    st.error("❌ Please process files first")
-                        except Exception as e:
-                            st.error(f"❌ Upload failed: {str(e)}")
-
-                with col3:
-                    export_both = st.button("📤 Export Both", width="stretch", key="export_both_btn")
-                    if export_both:
-                        try:
-                            # First handle Excel export
-                            excel_data, filename = export_to_excel(result_df, selected_market)
-                            
-                            # Then try Google Sheets upload
-                            with st.spinner("Uploading to Google Sheets..."):
-                                if processor and result_df is not None:
-                                    success = processor.append_to_sheets(result_df)
-                                    if success:
-                                        st.success(f"✅ Uploaded {len(result_df)} rows to Google Sheets!")
-                                        # Show Excel download button after successful upload
-                                        st.download_button(
-                                            label="⬇️ Download Excel",
-                                            data=excel_data,
-                                            file_name=filename,
-                                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                            width='stretch'
-                                        )
-                                        st.balloons()
-                                    else:
-                                        st.error("❌ Google Sheets upload failed")
-                                else:
-                                    st.error("❌ Please process files first")
-                        except Exception as e:
-                            st.error(f"❌ Export failed: {str(e)}")
-            else:
-                st.error("❌ No data to process")
-
+        # Step 5: Process Files
+        st.subheader("⚙️ Step 5: Process Files")
+        if st.button("🔄 Process Files", type="primary", use_container_width=True):
+            with st.spinner("Processing files..."):
+                # ✅ FIXED: Truyền đúng sheet_id
+                processor = SBProcessor(credentials_dict, sheet_id, selected_market)
+                result_df, processed_files = processor.process_files(uploaded_files)
+                
+                # ✅ FIXED: Lưu vào session_state để dùng cho các button khác
+                st.session_state.result_df = result_df
+                st.session_state.processor = processor
+                st.session_state.processed_files = processed_files
+                
+                if not result_df.empty:
+                    st.success(f"✅ Successfully processed {len(processed_files)} files")
+                    st.info(f"📊 Total rows: {len(result_df)}")
+                    
+                    with st.expander("👁️ Preview Data (First 10 rows)"):
+                        st.dataframe(result_df.head(10), use_container_width=True)
+                else:
+                    st.error("❌ No data to process")
+    
+    # ✅ FIXED: Hiển thị action buttons nếu đã có data processed
+    if 'result_df' in st.session_state and not st.session_state.result_df.empty:
+        st.markdown("---")
+        st.subheader("📤 Step 6: Select Action")
+        st.caption("Choose how to export your processed data")
+        
+        def export_to_excel(df, market):
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False, sheet_name='Data')
+            output.seek(0)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            return output, f"SB_{market}_{timestamp}.xlsx"
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            excel_data, filename = export_to_excel(st.session_state.result_df, selected_market)
+            st.download_button(
+                label="📥 Export to Excel",
+                data=excel_data,
+                file_name=filename,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+        
+        with col2:
+            if st.button("☁️ Push to Google Sheets", use_container_width=True, key="push_sheets_btn"):
+                try:
+                    with st.spinner("Uploading to Google Sheets..."):
+                        success = st.session_state.processor.append_to_sheets(st.session_state.result_df)
+                        if success:
+                            st.success(f"✅ Uploaded {len(st.session_state.result_df)} rows to Google Sheets!")
+                            st.balloons()
+                        else:
+                            st.error("❌ Upload failed - Check error messages above")
+                except Exception as e:
+                    st.error(f"❌ Upload failed: {str(e)}")
+                    st.text(traceback.format_exc())
+        
+        with col3:
+            if st.button("📤 Export Both", use_container_width=True, key="export_both_btn"):
+                try:
+                    excel_data, filename = export_to_excel(st.session_state.result_df, selected_market)
+                    
+                    with st.spinner("Uploading to Google Sheets..."):
+                        success = st.session_state.processor.append_to_sheets(st.session_state.result_df)
+                        if success:
+                            st.success(f"✅ Uploaded {len(st.session_state.result_df)} rows to Google Sheets!")
+                            st.download_button(
+                                label="⬇️ Download Excel",
+                                data=excel_data,
+                                file_name=filename,
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                use_container_width=True,
+                                key="download_after_both"
+                            )
+                            st.balloons()
+                        else:
+                            st.error("❌ Google Sheets upload failed")
+                except Exception as e:
+                    st.error(f"❌ Export failed: {str(e)}")
     else:
-        st.info("📁 Please upload Excel files to continue")
-
+        st.info("📁 Please upload and process Excel files to continue")
 
 def main():
     st.set_page_config(
@@ -417,7 +448,6 @@ def main():
         initial_sidebar_state="expanded"
     )
     
-    # Custom CSS
     st.markdown("""
         <style>
         .main {
@@ -433,12 +463,11 @@ def main():
     st.markdown("### Upload and manage your marketing data efficiently")
     st.markdown("---")
     
-    # Sidebar navigation
     st.sidebar.title("📋 Navigation")
     st.sidebar.markdown("Select the tool you want to use:")
     
     page = st.sidebar.radio(
-        label="Select a page",  # ⚠️ thêm label hợp lệ
+        label="Select a page",
         options=[
             "📊 Sellerboard",
             "💰 PPC XNurta",
@@ -447,29 +476,15 @@ def main():
             "🔍 ASIN - Dimension",
             "🚀 Launching - Dimension"
         ],
-        label_visibility="collapsed"  # vẫn ẩn label đi
+        label_visibility="collapsed"
     )
     
-    # Route to appropriate page
     if page == "📊 Sellerboard":
         sellerboard_page()
-    elif page == "💰 PPC XNurta":
-        st.info("🚧 PPC XNurta module - Coming soon...")
-        st.write("This module will be implemented next.")
-    elif page == "📺 DSP XNurta":
-        st.info("🚧 DSP XNurta module - Coming soon...")
-        st.write("This module will be implemented next.")
-    elif page == "📦 FBA Inventory":
-        st.info("🚧 FBA Inventory module - Coming soon...")
-        st.write("This module will be implemented next.")
-    elif page == "🔍 ASIN - Dimension":
-        st.info("🚧 ASIN - Dimension module - Coming soon...")
-        st.write("This module will be implemented next.")
-    elif page == "🚀 Launching - Dimension":
-        st.info("🚧 Launching - Dimension module - Coming soon...")
+    else:
+        st.info(f"🚧 {page} module - Coming soon...")
         st.write("This module will be implemented next.")
     
-    # Footer
     st.sidebar.markdown("---")
     st.sidebar.info(
         "📝 **How to use:**\n\n"
@@ -490,7 +505,6 @@ def main():
         "in memory during the session\n"
         "and never saved to disk."
     )
-
 
 if __name__ == "__main__":
     main()
