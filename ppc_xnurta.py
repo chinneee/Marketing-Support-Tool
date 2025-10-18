@@ -21,7 +21,7 @@ class PPCProcessor:
         self.credentials_dict = credentials_dict
         self.sheet_id = sheet_id
         self.market = market
-        self.worksheet_name = f"Raw_XN_H2_2025_{market}"
+        self.worksheet_name = f"Raw_XN_Q4_2025_{market}"
         
         # Define standard columns (from your original code)
         self.required_columns = [
