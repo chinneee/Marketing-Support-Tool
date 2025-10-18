@@ -202,18 +202,27 @@ class SBProcessor:
         if df.empty:
             st.warning("⚠️ No data to upload")
             return False
-        
+
         try:
             st.info(f"📤 Starting upload of {len(df)} rows...")
-            
+
             # Initialize connection
             self._init_google_sheets()
-            
+
+            # Get current row count
             existing_rows = self.get_existing_sheet_data_count()
             start_row = max(existing_rows + 2, 2)
-            
-            st.info(f"📍 Will upload to row {start_row}")
-            
+            end_row = start_row + len(df) - 1
+
+            # ✅ Auto-expand worksheet if needed
+            total_needed_rows = end_row + 1
+            current_rows = self.worksheet.row_count
+            if total_needed_rows > current_rows:
+                st.warning(f"⚠️ Expanding worksheet: need {total_needed_rows} rows, current {current_rows}")
+                self.worksheet.add_rows(total_needed_rows - current_rows)
+                st.success(f"✅ Expanded worksheet to {total_needed_rows} rows")
+
+            # Prepare data
             values_to_append = []
             for _, row in df.iterrows():
                 row_values = []
@@ -222,40 +231,35 @@ class SBProcessor:
                     if pd.isna(val):
                         row_values.append("")
                     elif isinstance(val, (pd.Timestamp, datetime)):
-                        # ✅ CRITICAL FIX: Format date cho Google Sheets API
-                        # Sử dụng format "M/D/YYYY" không có leading zero
-                        # Ví dụ: 10/15/2025 thay vì 10/15/2025
-                        row_values.append(f"{val.month}/{val.day}/{val.year}")
+                        row_values.append(f"{val.month}/{val.day}/{val.year}")  # M/D/YYYY
                     elif isinstance(val, (float, int)):
-                        # ✅ FIXED: Giữ nguyên number, không convert sang string
                         row_values.append(val)
                     else:
                         row_values.append(str(val))
                 values_to_append.append(row_values)
-            
+
             # Safe range definition
             end_col_index = len(self.standard_columns)
             end_col_letter = gspread.utils.rowcol_to_a1(1, end_col_index).split('1')[0].strip()
-            end_row = start_row + len(df) - 1
             range_name = f"A{start_row}:{end_col_letter}{end_row}"
-            
+
             st.info(f"📊 Uploading to range: {range_name}")
-            
-            # ✅ Update with value_input_option to parse dates automatically
+
             self.worksheet.update(
-                values=values_to_append, 
+                values=values_to_append,
                 range_name=range_name,
-                value_input_option='USER_ENTERED'  # 🔑 KEY FIX: Cho phép Google Sheets parse date tự động
+                value_input_option="USER_ENTERED"
             )
-            
+
             st.success(f"✅ Successfully uploaded {len(df)} rows!")
             return True
-            
+
         except Exception as e:
             st.error(f"❌ Error uploading to Google Sheets: {e}")
             st.text("Full error trace:")
             st.text(traceback.format_exc())
             return False
+
 
 def load_credentials_from_file(uploaded_file):
     """Load Google Sheets credentials from uploaded JSON file"""
