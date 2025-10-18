@@ -9,15 +9,17 @@ import io
 import json
 from typing import List, Tuple
 import traceback
+import warnings
+
+# Suppress warnings
+warnings.filterwarnings('ignore', category=FutureWarning)
+warnings.filterwarnings('ignore', category=pd.errors.SettingWithCopyWarning)
 
 class SBProcessor:
     """Sellerboard Data Processor"""
     
     def __init__(self, credentials_dict, sheet_id, market):
         self.credentials_dict = credentials_dict
-        # ❌ LỖI 1: Bạn đang hardcode sheet_id thay vì dùng parameter
-        # self.sheet_id = "1rqH3SePVbpwcj1oD4Bqaa40IbkyKUi7aRBThlBdnEu4"
-        # ✅ FIXED: Sử dụng parameter được truyền vào
         self.sheet_id = sheet_id
         self.market = market
         self.worksheet_name = f"Raw_SB_H2_2025_{market}"
@@ -63,8 +65,8 @@ class SBProcessor:
                         rows="1000",
                         cols="30"
                     )
-                    # Add headers
-                    self.worksheet.update('A1', [self.standard_columns])
+                    # Add headers - Fixed: Use named parameters
+                    self.worksheet.update(values=[self.standard_columns], range_name='A1')
                     st.success(f"✅ Created new worksheet: {self.worksheet_name}")
                     
         except Exception as e:
@@ -81,6 +83,8 @@ class SBProcessor:
     
     def _standardize_columns(self, df):
         """Standardize and select only required columns"""
+        # ✅ Fixed: Create explicit copy to avoid SettingWithCopyWarning
+        df = df.copy()
         df.columns = [str(c).strip() for c in df.columns]
         
         column_mapping = {}
@@ -115,7 +119,7 @@ class SBProcessor:
         """Process a single Excel file and return DataFrame with Date column"""
         try:
             df = pd.read_excel(io.BytesIO(file_content))
-            df = df.dropna(axis=1, how="all")
+            df = df.dropna(axis=1, how="all").copy()  # ✅ Add .copy()
             
             # Extract date from filename
             date_val = self.extract_date_from_filename(filename)
@@ -142,11 +146,9 @@ class SBProcessor:
                 processed_files.append(uploaded_file.name)
         
         if all_dataframes:
-            # ❌ LỖI 2: Indentation sai - phần code này nằm trong vòng lặp for
-            # ✅ FIXED: Di chuyển ra ngoài vòng lặp
             valid_dataframes = []
             for df in all_dataframes:
-                df_cleaned = df.dropna(axis=1, how="all")
+                df_cleaned = df.dropna(axis=1, how="all").copy()  # ✅ Add .copy()
                 
                 if not df_cleaned.empty:
                     for col in self.standard_columns:
@@ -157,20 +159,27 @@ class SBProcessor:
                     valid_dataframes.append(df_cleaned)
             
             if valid_dataframes:
-                merged_df = pd.concat(valid_dataframes, ignore_index=True, sort=False)
+                # ✅ Fixed: Filter out empty DataFrames before concat to avoid FutureWarning
+                non_empty_dataframes = [df for df in valid_dataframes if not df.empty and len(df) > 0]
                 
-                # Sort by Date then Sales
-                if "Date" in merged_df.columns and "Sales" in merged_df.columns:
-                    merged_df = merged_df.sort_values(
-                        ["Date", "Sales"], ascending=[True, False]
-                    )
-                elif "Date" in merged_df.columns:
-                    merged_df = merged_df.sort_values("Date")
-                
-                # Sắp xếp đúng thứ tự chuẩn
-                merged_df = merged_df[self.standard_columns]
-                
-                return merged_df, processed_files
+                if non_empty_dataframes:
+                    merged_df = pd.concat(non_empty_dataframes, ignore_index=True, sort=False)
+                    
+                    # Sort by Date then Sales
+                    if "Date" in merged_df.columns and "Sales" in merged_df.columns:
+                        merged_df = merged_df.sort_values(
+                            ["Date", "Sales"], ascending=[True, False]
+                        )
+                    elif "Date" in merged_df.columns:
+                        merged_df = merged_df.sort_values("Date")
+                    
+                    # Sắp xếp đúng thứ tự chuẩn
+                    merged_df = merged_df[self.standard_columns]
+                    
+                    return merged_df, processed_files
+                else:
+                    st.warning("⚠️ All uploaded files are empty or invalid.")
+                    return pd.DataFrame(), []
             else:
                 st.warning("⚠️ All uploaded files are empty or invalid.")
                 return pd.DataFrame(), []
@@ -228,8 +237,8 @@ class SBProcessor:
             
             st.info(f"📊 Uploading to range: {range_name}")
             
-            # Upload data
-            self.worksheet.update(range_name, values_to_append)
+            # ✅ Fixed: Use named parameters to avoid deprecation warning
+            self.worksheet.update(values=values_to_append, range_name=range_name)
             
             st.success(f"✅ Successfully uploaded {len(df)} rows!")
             return True
@@ -295,10 +304,9 @@ def sellerboard_page():
     # Step 2: Enter Sheet ID
     st.subheader("📝 Step 2: Enter Google Sheet ID")
     
-    # ✅ FIXED: Thêm giá trị mặc định
     sheet_id = st.text_input(
         "Google Sheet ID",
-        value="1rqH3SePVbpwcj1oD4Bqaa40IbkyKUi7aRBThlBdnEu4",  # Giá trị mặc định
+        value="1rqH3SePVbpwcj1oD4Bqaa40IbkyKUi7aRBThlBdnEu4",
         help="Find this in your Google Sheet URL: docs.google.com/spreadsheets/d/{SHEET_ID}/edit"
     )
     
@@ -311,21 +319,21 @@ def sellerboard_page():
     # Step 3: Select Market
     st.subheader("🌍 Step 3: Select Market")
     
-    # ✅ FIXED: Sử dụng session_state để lưu market đã chọn
     if 'selected_market' not in st.session_state:
         st.session_state.selected_market = "US"
     
     col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("🇺🇸 US Market", use_container_width=True, 
+        # ✅ Fixed: Replace use_container_width with width
+        if st.button("🇺🇸 US Market", width="stretch", 
                     type="primary" if st.session_state.selected_market == "US" else "secondary"):
             st.session_state.selected_market = "US"
     with col2:
-        if st.button("🇨🇦 CA Market", use_container_width=True,
+        if st.button("🇨🇦 CA Market", width="stretch",
                     type="primary" if st.session_state.selected_market == "CA" else "secondary"):
             st.session_state.selected_market = "CA"
     with col3:
-        if st.button("🇬🇧 UK Market", use_container_width=True,
+        if st.button("🇬🇧 UK Market", width="stretch",
                     type="primary" if st.session_state.selected_market == "UK" else "secondary"):
             st.session_state.selected_market = "UK"
     
@@ -355,13 +363,11 @@ def sellerboard_page():
         
         # Step 5: Process Files
         st.subheader("⚙️ Step 5: Process Files")
-        if st.button("🔄 Process Files", type="primary", use_container_width=True):
+        if st.button("🔄 Process Files", type="primary", width="stretch"):
             with st.spinner("Processing files..."):
-                # ✅ FIXED: Truyền đúng sheet_id
                 processor = SBProcessor(credentials_dict, sheet_id, selected_market)
                 result_df, processed_files = processor.process_files(uploaded_files)
                 
-                # ✅ FIXED: Lưu vào session_state để dùng cho các button khác
                 st.session_state.result_df = result_df
                 st.session_state.processor = processor
                 st.session_state.processed_files = processed_files
@@ -375,7 +381,7 @@ def sellerboard_page():
                 else:
                     st.error("❌ No data to process")
     
-    # ✅ FIXED: Hiển thị action buttons nếu đã có data processed
+    # Step 6: Action buttons
     if 'result_df' in st.session_state and not st.session_state.result_df.empty:
         st.markdown("---")
         st.subheader("📤 Step 6: Select Action")
@@ -398,11 +404,11 @@ def sellerboard_page():
                 data=excel_data,
                 file_name=filename,
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
+                width="stretch"  # ✅ Fixed
             )
         
         with col2:
-            if st.button("☁️ Push to Google Sheets", use_container_width=True, key="push_sheets_btn"):
+            if st.button("☁️ Push to Google Sheets", width="stretch", key="push_sheets_btn"):
                 try:
                     with st.spinner("Uploading to Google Sheets..."):
                         success = st.session_state.processor.append_to_sheets(st.session_state.result_df)
@@ -416,7 +422,7 @@ def sellerboard_page():
                     st.text(traceback.format_exc())
         
         with col3:
-            if st.button("📤 Export Both", use_container_width=True, key="export_both_btn"):
+            if st.button("📤 Export Both", width="stretch", key="export_both_btn"):
                 try:
                     excel_data, filename = export_to_excel(st.session_state.result_df, selected_market)
                     
@@ -429,7 +435,7 @@ def sellerboard_page():
                                 data=excel_data,
                                 file_name=filename,
                                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                use_container_width=True,
+                                width="stretch",  # ✅ Fixed
                                 key="download_after_both"
                             )
                             st.balloons()
