@@ -19,7 +19,7 @@ class PPCProcessor:
     
     def __init__(self, credentials_dict, sheet_id, market):
         self.credentials_dict = credentials_dict
-        self.sheet_id = "1rqH3SePVbpwcj1oD4Bqaa40IbkyKUi7aRBThlBdnEu4"
+        self.sheet_id = sheet_id
         self.market = market
         self.worksheet_name = f"Raw_XN_Q4_2025_{market}"
         
@@ -423,7 +423,7 @@ def ppc_xnurta_page():
     
     sheet_id = st.text_input(
         "Google Sheet ID",
-        value="1lZ4dsi94HaeWshsEizKTyNHeOOG0tpLJhzL9pMxvd6k",
+        value="1rqH3SePVbpwcj1oD4Bqaa40IbkyKUi7aRBThlBdnEu4",
         help="Find this in your Google Sheet URL"
     )
     
