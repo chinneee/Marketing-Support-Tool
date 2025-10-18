@@ -128,7 +128,26 @@ class DSPProcessor:
         except Exception:
             # fallback: just add Date as a new column at the end
             df["Date"] = date_val
+        required_columns = [
+            "ASIN", "Creative", "Date", "Total cost", "Total product sales", "eCPM",
+            "Total CPDPV", "Total ROAS", "Total percent of purchases new-to-brand",
+            "CTR", "Total DPVR", "Total ATCR", "Total eCPP", "ROAS", "VCR",
+            "Impressions", "Click-throughs", "Total DPV", "Total ATC", "Total purchase",
+            "Total units sold", "Branded Searches", "eCPC", "DPV", "DPVR", "CPDPV",
+            "ATC", "ATCR", "Total CPATC", "CPATC", "Product sales",
+            "Total new-to-brand product sales", "New-to-brand product Sales",
+            "Total new-to-brand ROAS", "New-to-brand return on advertising spend",
+            "Purchases", "Total new-to-brand purchases", "New-to-brand purchases",
+            "Total Purchase Rate"
+        ]
 
+        # Thêm cột trống nếu thiếu
+        for col in required_columns:
+            if col not in df.columns:
+                df[col] = np.nan
+
+        # Sắp xếp lại thứ tự cột theo chuẩn
+        df = df.loc[:, required_columns]
         return df
 
     def process_files(self, uploaded_files: list) -> tuple:
@@ -273,7 +292,7 @@ def dsp_xnurta_page():
     st.subheader("📝 Step 2: Enter Google Sheet ID")
     sheet_id = st.text_input(
         "Google Sheet ID",
-        value="1GpPsWt_fWCfHnEdFQJIsNBebhqFnIiExsHA8SjNUhFk",
+        value="1rqH3SePVbpwcj1oD4Bqaa40IbkyKUi7aRBThlBdnEu4",
         help="Find this in your Google Sheet URL: docs.google.com/spreadsheets/d/{SHEET_ID}/edit",
         key="dsp_sheet_id"
     )
