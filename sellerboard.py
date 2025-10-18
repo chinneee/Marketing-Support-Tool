@@ -385,7 +385,7 @@ def sellerboard_page():
                     st.info(f"📊 Total rows: {len(result_df)}")
                     
                     with st.expander("👁️ Preview Data (First 10 rows)"):
-                        st.dataframe(result_df.head(10), use_container_width=True)
+                        st.dataframe(result_df.head(10), width=True)
                 else:
                     st.error("❌ No data to process")
     
