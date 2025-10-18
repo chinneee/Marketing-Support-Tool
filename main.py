@@ -1,6 +1,6 @@
 import streamlit as st
-from modules.sellerboard import sellerboard_page
-from modules.ppc_xnurta import ppc_xnurta_page
+from sellerboard import sellerboard_page
+from ppc_xnurta import ppc_xnurta_page
 
 def main():
     st.set_page_config(
