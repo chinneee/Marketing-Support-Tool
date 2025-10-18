@@ -547,27 +547,5 @@ def ppc_xnurta_page():
                     st.error(f"❌ Upload failed: {str(e)}")
                     st.text(traceback.format_exc())
         
-        with col3:
-            if st.button("📤 Export Both", width="stretch", key="ppc_both"):
-                try:
-                    excel_data, filename = export_to_excel(st.session_state.ppc_result_df, selected_market)
-                    
-                    with st.spinner("Uploading to Google Sheets..."):
-                        success = st.session_state.ppc_processor.append_to_sheets(st.session_state.ppc_result_df)
-                        if success:
-                            st.success(f"✅ Uploaded {len(st.session_state.ppc_result_df)} rows!")
-                            st.download_button(
-                                label="⬇️ Download Excel",
-                                data=excel_data,
-                                file_name=filename,
-                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                width="stretch",
-                                key="ppc_download_after_both"
-                            )
-                            st.balloons()
-                        else:
-                            st.error("❌ Google Sheets upload failed")
-                except Exception as e:
-                    st.error(f"❌ Export failed: {str(e)}")
     else:
         st.info("📁 Please upload and process PPC files to continue")

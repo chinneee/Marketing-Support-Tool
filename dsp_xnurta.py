@@ -238,7 +238,7 @@ def export_to_excel_bytes(df: pd.DataFrame, sheet_name: str = "Data"):
 # ---------------------------
 
 def dsp_xnurta_page():
-    st.header("📺 DSP XNurta - Monthly Append Tool")
+    st.header("📺 DSP XNurta Data Upload")
     st.markdown("Upload DSP files (monthly), process and append to Google Sheets. Flow: Credentials → Sheet ID → Market → Upload Files → Process → Export/Push")
 
     # Step 1: credentials upload
@@ -379,25 +379,6 @@ def dsp_xnurta_page():
                         st.balloons()
                     else:
                         st.error("❌ Upload failed - check logs above")
-
-        with col3:
-            if st.button("📤 Export Both (Upload then Download)", use_container_width=True, key="dsp_both"):
-                with st.spinner("Uploading to Google Sheets..."):
-                    success = st.session_state.dsp_processor.append_to_sheets(st.session_state.dsp_merged_df, selected_market)
-                    if success:
-                        st.success(f"✅ Uploaded {len(st.session_state.dsp_merged_df)} rows!")
-                        excel_bytes, filename = export_action(st.session_state.dsp_merged_df, selected_market)
-                        st.download_button(
-                            label="⬇️ Download Excel",
-                            data=excel_bytes,
-                            file_name=filename,
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            use_container_width=True,
-                            key="dsp_download_after_both"
-                        )
-                        st.balloons()
-                    else:
-                        st.error("❌ Upload failed - cannot export")
 
     else:
         st.info("📁 Please process files to access export/upload actions")
