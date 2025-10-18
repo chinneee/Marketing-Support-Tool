@@ -222,9 +222,13 @@ class SBProcessor:
                     if pd.isna(val):
                         row_values.append("")
                     elif isinstance(val, (pd.Timestamp, datetime)):
-                        row_values.append(val.strftime("%m/%d/%Y"))
+                        # ✅ CRITICAL FIX: Format date cho Google Sheets API
+                        # Sử dụng format "M/D/YYYY" không có leading zero
+                        # Ví dụ: 10/15/2025 thay vì 10/15/2025
+                        row_values.append(f"{val.month}/{val.day}/{val.year}")
                     elif isinstance(val, (float, int)):
-                        row_values.append(str(val))
+                        # ✅ FIXED: Giữ nguyên number, không convert sang string
+                        row_values.append(val)
                     else:
                         row_values.append(str(val))
                 values_to_append.append(row_values)
@@ -237,8 +241,12 @@ class SBProcessor:
             
             st.info(f"📊 Uploading to range: {range_name}")
             
-            # ✅ Fixed: Use named parameters to avoid deprecation warning
-            self.worksheet.update(values=values_to_append, range_name=range_name)
+            # ✅ Update with value_input_option to parse dates automatically
+            self.worksheet.update(
+                values=values_to_append, 
+                range_name=range_name,
+                value_input_option='USER_ENTERED'  # 🔑 KEY FIX: Cho phép Google Sheets parse date tự động
+            )
             
             st.success(f"✅ Successfully uploaded {len(df)} rows!")
             return True
