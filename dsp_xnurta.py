@@ -175,7 +175,7 @@ class DSPProcessor:
 
         # Optionally reorder columns to put ASIN, Date at front
         cols = list(merged_df.columns)
-        desired_front = ["ASIN", "Date", "Creative"]
+        desired_front = ["ASIN", "Creative", "Date"]
         new_cols = [c for c in desired_front if c in cols] + [c for c in cols if c not in desired_front]
         merged_df = merged_df.loc[:, new_cols]
 
