@@ -107,7 +107,11 @@ class DSPProcessor:
             raise ValueError(f"'Creative' column not found in {filename}")
 
         # Create ASIN column (first 10 chars of Creative, uppercased)
+        if "ASIN" in df.columns:
+            df = df.drop(columns=["ASIN"])
+
         df.insert(0, "ASIN", df["Creative"].astype(str).str[:10].str.upper())
+
 
         # Extract date from filename and insert after 'Creative' column
         file_date = DSPProcessor.extract_date_from_filename(filename)
@@ -271,9 +275,6 @@ def dsp_xnurta_page():
         try:
             credentials_dict = json_load_stream(credentials_file)
             st.success("✅ Credentials loaded")
-            with st.expander("📋 Credential Info"):
-                st.write(f"**Project ID:** {credentials_dict.get('project_id', 'N/A')}")
-                st.write(f"**Client Email:** {credentials_dict.get('client_email', 'N/A')}")
         except Exception as e:
             st.error(f"❌ Invalid credentials file: {e}")
             st.text(traceback.format_exc())
