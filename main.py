@@ -299,7 +299,9 @@ def main():
     
     with col2:
         st.markdown("**Documentation**")
-        st.markdown("📚 [View Docs](#)")
+        # Khi click thì bật/tắt hiển thị docs
+        if st.button("📚 View Docs", key="view_docs"):
+            st.session_state.show_docs = not st.session_state.get("show_docs", False)
     
     with col3:
         st.markdown("**Report Issues**")
