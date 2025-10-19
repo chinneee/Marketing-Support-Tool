@@ -6,7 +6,6 @@ secondaryBackgroundColor = "#F0F2F6"
 textColor = "#262730"
 font = "sans serif"
 
-# Bổ sung thêm:
-base = "light"  # hoặc "dark" - chọn theme cơ bản
 
-# Các tùy chỉnh nâng cao khác (nếu cần):
+base = "light"
+
