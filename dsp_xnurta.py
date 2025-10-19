@@ -289,13 +289,6 @@ def dsp_xnurta_page():
             return
     else:
         st.warning("⚠️ Please upload credential.json file to continue")
-        st.markdown("""
-        **📌 How to get credentials:**
-        1. Go to Google Cloud Console
-        2. Create a Service Account
-        3. Download JSON key file
-        4. Share your Google Sheet with the service account email
-        """)
         return
 
     st.markdown("---")
