@@ -404,9 +404,6 @@ def ppc_xnurta_page():
         credentials_dict = load_credentials_from_file(credentials_file)
         if credentials_dict:
             st.success("✅ Credentials loaded successfully!")
-            with st.expander("📋 Credential Info"):
-                st.write(f"**Project ID:** {credentials_dict.get('project_id', 'N/A')}")
-                st.write(f"**Client Email:** {credentials_dict.get('client_email', 'N/A')}")
         else:
             st.error("❌ Failed to load credentials. Please check your JSON file.")
             return
