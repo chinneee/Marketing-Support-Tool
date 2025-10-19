@@ -466,14 +466,7 @@ def sellerboard_page():
                 )
             with col2:
                 show_all = st.checkbox("All columns", value=False)
-            with col3:
-                show_summary = st.checkbox("Show summary", value=False)
-            
-            # Show processing summary if requested
-            if show_summary:
-                with st.expander("📋 Processing Details", expanded=True):
-                    for pf in processed_files:
-                        st.markdown(f"✓ **{pf['file_name']}** → {pf['rows_count']} rows")
+
             
             # Display dataframe
             display_df = result_df if show_all else (result_df.iloc[:, :8] if len(result_df.columns) > 8 else result_df)
