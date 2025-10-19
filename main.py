@@ -1,7 +1,7 @@
 import streamlit as st
-from sellerboard import sellerboard_page
-from ppc_xnurta import ppc_xnurta_page
-from dsp_xnurta import dsp_xnurta_page
+from modules.sellerboard import sellerboard_page
+from modules.ppc_xnurta import ppc_xnurta_page
+from modules.dsp_xnurta import dsp_xnurta_page
 from datetime import datetime
 
 def main():
