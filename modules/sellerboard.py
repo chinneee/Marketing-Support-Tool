@@ -1,5 +1,6 @@
 import streamlit as st
 import os
+import sys
 import re
 import pandas as pd
 from datetime import datetime
@@ -10,10 +11,50 @@ import json
 from typing import List, Tuple
 import traceback
 import warnings
+import time
 
 # Suppress warnings
 warnings.filterwarnings('ignore', category=FutureWarning)
 warnings.filterwarnings('ignore', category=pd.errors.SettingWithCopyWarning)
+
+# ============================================================
+# METRICS TRACKING FUNCTIONS
+# ============================================================
+
+def update_metrics(success: bool, market: str):
+    """
+    Update upload metrics in session state
+    Args:
+        success: True if upload succeeded, False otherwise
+        market: Market code (e.g., 'US', 'CA', 'UK')
+    """
+    try:
+        # Reset today's count if it's a new day
+        current_date = datetime.now().date()
+        if st.session_state.last_upload_date != current_date:
+            st.session_state.today_uploads = 0
+            st.session_state.last_upload_date = current_date
+        
+        # Update counters
+        st.session_state.total_uploads += 1
+        st.session_state.today_uploads += 1
+        
+        if success:
+            st.session_state.successful_uploads += 1
+        else:
+            st.session_state.failed_uploads += 1
+        
+        # Track active market
+        st.session_state.active_markets.add(market)
+        st.session_state.last_updated = datetime.now()
+        
+    except Exception as e:
+        # Fail silently to not interrupt main flow
+        print(f"Warning: Could not update metrics: {e}")
+
+# ============================================================
+# MAIN PROCESSOR CLASS
+# ============================================================
 
 class SBProcessor:
     """Sellerboard Data Processor"""
@@ -65,7 +106,7 @@ class SBProcessor:
                         rows="1000",
                         cols="30"
                     )
-                    # Add headers - Fixed: Use named parameters
+                    # Add headers
                     self.worksheet.update(values=[self.standard_columns], range_name='A1')
                     st.success(f"✅ Created new worksheet: {self.worksheet_name}")
                     
@@ -83,7 +124,6 @@ class SBProcessor:
     
     def _standardize_columns(self, df):
         """Standardize and select only required columns"""
-        # ✅ Fixed: Create explicit copy to avoid SettingWithCopyWarning
         df = df.copy()
         df.columns = [str(c).strip() for c in df.columns]
         
@@ -119,7 +159,7 @@ class SBProcessor:
         """Process a single Excel file and return DataFrame with Date column"""
         try:
             df = pd.read_excel(io.BytesIO(file_content))
-            df = df.dropna(axis=1, how="all").copy()  # ✅ Add .copy()
+            df = df.dropna(axis=1, how="all").copy()
             
             # Extract date from filename
             date_val = self.extract_date_from_filename(filename)
@@ -148,7 +188,7 @@ class SBProcessor:
         if all_dataframes:
             valid_dataframes = []
             for df in all_dataframes:
-                df_cleaned = df.dropna(axis=1, how="all").copy()  # ✅ Add .copy()
+                df_cleaned = df.dropna(axis=1, how="all").copy()
                 
                 if not df_cleaned.empty:
                     for col in self.standard_columns:
@@ -159,7 +199,6 @@ class SBProcessor:
                     valid_dataframes.append(df_cleaned)
             
             if valid_dataframes:
-                # ✅ Fixed: Filter out empty DataFrames before concat to avoid FutureWarning
                 non_empty_dataframes = [df for df in valid_dataframes if not df.empty and len(df) > 0]
                 
                 if non_empty_dataframes:
@@ -202,26 +241,26 @@ class SBProcessor:
         if df.empty:
             st.warning("⚠️ No data to upload")
             return False
-
+        
         try:
             st.info(f"📤 Starting upload of {len(df)} rows...")
-
+            
             # Initialize connection
             self._init_google_sheets()
-
+            
             # Get current row count
             existing_rows = self.get_existing_sheet_data_count()
             start_row = max(existing_rows + 2, 2)
             end_row = start_row + len(df) - 1
-
-            # ✅ Auto-expand worksheet if needed
+            
+            # Auto-expand worksheet if needed
             total_needed_rows = end_row + 1
             current_rows = self.worksheet.row_count
             if total_needed_rows > current_rows:
                 st.warning(f"⚠️ Expanding worksheet: need {total_needed_rows} rows, current {current_rows}")
                 self.worksheet.add_rows(total_needed_rows - current_rows)
                 st.success(f"✅ Expanded worksheet to {total_needed_rows} rows")
-
+            
             # Prepare data
             values_to_append = []
             for _, row in df.iterrows():
@@ -231,35 +270,38 @@ class SBProcessor:
                     if pd.isna(val):
                         row_values.append("")
                     elif isinstance(val, (pd.Timestamp, datetime)):
-                        row_values.append(f"{val.month}/{val.day}/{val.year}")  # M/D/YYYY
+                        row_values.append(f"{val.month}/{val.day}/{val.year}")
                     elif isinstance(val, (float, int)):
                         row_values.append(val)
                     else:
                         row_values.append(str(val))
                 values_to_append.append(row_values)
-
+            
             # Safe range definition
             end_col_index = len(self.standard_columns)
             end_col_letter = gspread.utils.rowcol_to_a1(1, end_col_index).split('1')[0].strip()
             range_name = f"A{start_row}:{end_col_letter}{end_row}"
-
+            
             st.info(f"📊 Uploading to range: {range_name}")
-
+            
             self.worksheet.update(
                 values=values_to_append,
                 range_name=range_name,
                 value_input_option="USER_ENTERED"
             )
-
+            
             st.success(f"✅ Successfully uploaded {len(df)} rows!")
             return True
-
+            
         except Exception as e:
             st.error(f"❌ Error uploading to Google Sheets: {e}")
             st.text("Full error trace:")
             st.text(traceback.format_exc())
             return False
 
+# ============================================================
+# HELPER FUNCTIONS
+# ============================================================
 
 def load_credentials_from_file(uploaded_file):
     """Load Google Sheets credentials from uploaded JSON file"""
@@ -280,6 +322,10 @@ def load_credentials_from_file(uploaded_file):
     except Exception as e:
         st.error(f"❌ Error loading credentials: {e}")
         return None
+
+# ============================================================
+# MAIN PAGE FUNCTION
+# ============================================================
 
 def sellerboard_page():
     """Sellerboard data upload page"""
@@ -331,16 +377,15 @@ def sellerboard_page():
     
     col1, col2, col3 = st.columns(3)
     with col1:
-        # ✅ Fixed: Replace use_container_width with width
-        if st.button("🇺🇸 US Market", width="stretch", 
+        if st.button("🇺🇸 US Market", use_container_width=True,
                     type="primary" if st.session_state.selected_market == "US" else "secondary"):
             st.session_state.selected_market = "US"
     with col2:
-        if st.button("🇨🇦 CA Market", width="stretch",
+        if st.button("🇨🇦 CA Market", use_container_width=True,
                     type="primary" if st.session_state.selected_market == "CA" else "secondary"):
             st.session_state.selected_market = "CA"
     with col3:
-        if st.button("🇬🇧 UK Market", width="stretch",
+        if st.button("🇬🇧 UK Market", use_container_width=True,
                     type="primary" if st.session_state.selected_market == "UK" else "secondary"):
             st.session_state.selected_market = "UK"
     
@@ -349,7 +394,7 @@ def sellerboard_page():
     
     st.markdown("---")
     
-   # Combined Step: Upload, Process & Export Data Files
+    # Combined Step: Upload, Process & Export Data Files
     st.subheader("📂 Step 4: Upload, Process & Export Data")
     
     uploaded_files = st.file_uploader(
@@ -366,9 +411,9 @@ def sellerboard_page():
         with col1:
             st.success(f"✅ {len(uploaded_files)} file(s) uploaded successfully")
         with col2:
-            total_size = sum(f.size for f in uploaded_files) / (1024 * 1024)  # Convert to MB
+            total_size = sum(f.size for f in uploaded_files) / (1024 * 1024)
             st.metric("Total Size", f"{total_size:.2f} MB")
-
+        
         # Auto-process files
         current_file_names = [f.name for f in uploaded_files]
         
@@ -412,7 +457,6 @@ def sellerboard_page():
                 status_text.text("✅ Processing complete!")
                 
                 # Clear progress indicators after a moment
-                import time
                 time.sleep(0.5)
                 status_placeholder.empty()
                 
@@ -464,7 +508,6 @@ def sellerboard_page():
                 )
             with col2:
                 show_all = st.checkbox("All columns", value=False)
-
             
             # Display dataframe
             display_df = result_df if show_all else (result_df.iloc[:, :8] if len(result_df.columns) > 8 else result_df)
@@ -550,6 +593,7 @@ def sellerboard_page():
                             status_text.text("Uploading data...")
                             progress_bar.progress(50)
                             
+                            # 🎯 UPLOAD TO SHEETS
                             success = st.session_state.processor.append_to_sheets(result_df)
                             
                             status_text.text("Verifying upload...")
@@ -560,6 +604,9 @@ def sellerboard_page():
                                 status_text.text("✅ Upload complete!")
                                 time.sleep(0.5)
                                 upload_placeholder.empty()
+                                
+                                # ✅ UPDATE METRICS - SUCCESS
+                                update_metrics(success=True, market=selected_market)
                                 
                                 st.success(f"✅ Successfully uploaded {len(result_df):,} rows to Google Sheets!")
                                 st.balloons()
@@ -575,10 +622,18 @@ def sellerboard_page():
                                     """)
                             else:
                                 upload_placeholder.empty()
+                                
+                                # ❌ UPDATE METRICS - FAILURE
+                                update_metrics(success=False, market=selected_market)
+                                
                                 st.error("❌ Upload failed - Please check the error messages above")
                                 
                         except Exception as e:
                             upload_placeholder.empty()
+                            
+                            # ❌ UPDATE METRICS - ERROR
+                            update_metrics(success=False, market=selected_market)
+                            
                             st.error(f"❌ Upload failed: {str(e)}")
                             with st.expander("🔍 Error Details"):
                                 st.code(traceback.format_exc())
@@ -604,4 +659,3 @@ def sellerboard_page():
             3. Preview & export options appear
             4. Choose download or upload to Sheets
             """)
-        
