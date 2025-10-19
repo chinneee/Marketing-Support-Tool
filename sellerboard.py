@@ -304,7 +304,6 @@ def sellerboard_page():
             return
     else:
         st.warning("⚠️ Please upload credential.json file to continue")
-        st.info("💡 You need Google Service Account credentials to push data to Google Sheets")
         return
     
     st.markdown("---")

@@ -5,6 +5,7 @@ import numpy as np
 import io
 import re
 import traceback
+import time
 from datetime import datetime
 from google.oauth2.service_account import Credentials
 import gspread
@@ -12,7 +13,6 @@ import gspread
 # ---------------------------
 #  DSP Processor
 # ---------------------------
-
 class DSPProcessor:
     """
     DSP XNurta Processor
@@ -24,7 +24,6 @@ class DSPProcessor:
       * Extract date from filename (YYYYMMDD pattern) -> datetime.date
       * Insert "Date" column next to "Creative"
     """
-
     def __init__(self, credentials_dict: dict, sheet_id: str, worksheet_base_name: str = "Raw_DSP_H2_2025"):
         self.credentials_dict = credentials_dict
         self.sheet_id = sheet_id
@@ -55,7 +54,6 @@ class DSPProcessor:
                 st.success(f"✅ Created new worksheet: {worksheet_name}")
 
             return True
-
         except Exception as e:
             st.error(f"❌ Error initializing Google Sheets: {e}")
             st.text(traceback.format_exc())
@@ -99,7 +97,6 @@ class DSPProcessor:
         if len(df) > 1:
             df = df.iloc[:-1, :].copy()
         else:
-            # nothing meaningful to keep
             df = df.copy()
 
         # Ensure 'Creative' column exists
@@ -111,24 +108,21 @@ class DSPProcessor:
 
         # Extract date from filename and insert after 'Creative' column
         file_date = DSPProcessor.extract_date_from_filename(filename)
-        # Use pandas datetime for consistency
         if file_date is not None:
             date_val = pd.to_datetime(file_date)
         else:
             date_val = pd.NaT
 
-        # Find index of Creative column (after insertion ASIN, the index shifted)
+        # Find index of Creative column
         try:
             creative_idx = list(df.columns).index("Creative")
-            # Insert Date after Creative column
             before = df.iloc[:, :creative_idx + 1].copy()
             after = df.iloc[:, creative_idx + 1:].copy()
             date_series = pd.Series([date_val] * len(df), name="Date", index=df.index)
             df = pd.concat([before, date_series, after], axis=1)
         except Exception:
-            # fallback: just add Date as a new column at the end
             df["Date"] = date_val
-        
+
         required_columns = [
             "ASIN", "Creative", "Date", "Total cost", "Total product sales", "eCPM",
             "Total CPDPV", "Total ROAS", "Total percent of purchases new-to-brand",
@@ -141,20 +135,21 @@ class DSPProcessor:
             "Purchases", "Total new-to-brand purchases", "New-to-brand purchases",
             "Total Purchase Rate"
         ]
-
-        # Thêm cột trống nếu thiếu
+        
+        # Add missing columns
         for col in required_columns:
             if col not in df.columns:
                 df[col] = np.nan
-
-        # Sắp xếp lại thứ tự cột theo chuẩn
+        
+        # Reorder columns
         df = df.loc[:, required_columns]
+        
         return df
 
     def process_files(self, uploaded_files: list) -> tuple:
         """
         uploaded_files: list of streamlit UploadedFile objects
-        Returns (merged_df, processed_filenames)
+        Returns (merged_df, processed_files_info)
         """
         all_dfs = []
         processed_files = []
@@ -164,7 +159,10 @@ class DSPProcessor:
                 content = uploaded_file.read()
                 df = self.process_single_file_content(content, uploaded_file.name)
                 all_dfs.append(df)
-                processed_files.append(uploaded_file.name)
+                processed_files.append({
+                    'file_name': uploaded_file.name,
+                    'rows_count': len(df)
+                })
             except Exception as e:
                 st.error(f"⚠️ Error processing {uploaded_file.name}: {e}")
                 st.text(traceback.format_exc())
@@ -173,8 +171,8 @@ class DSPProcessor:
             return pd.DataFrame(), []
 
         merged_df = pd.concat(all_dfs, ignore_index=True, sort=False)
-
-        # Optionally reorder columns to put ASIN, Date at front
+        
+        # Reorder columns
         cols = list(merged_df.columns)
         desired_front = ["ASIN", "Creative", "Date"]
         new_cols = [c for c in desired_front if c in cols] + [c for c in cols if c not in desired_front]
@@ -185,7 +183,6 @@ class DSPProcessor:
     def append_to_sheets(self, df: pd.DataFrame, market: str) -> bool:
         """
         Append df to the Google Sheet worksheet for the given market.
-        Responsible for ensuring enough rows and writing with USER_ENTERED.
         """
         if df.empty:
             st.warning("⚠️ No data to upload")
@@ -196,45 +193,39 @@ class DSPProcessor:
             return False
 
         try:
-            # Format datetime columns to M/D/YYYY for Google Sheets to parse
+            # Format datetime columns
             safe_df = df.copy()
             datetime_cols = safe_df.select_dtypes(include=["datetime64[ns]", "datetimetz"]).columns
             for col in datetime_cols:
                 safe_df[col] = safe_df[col].apply(lambda x: f"{x.month}/{x.day}/{x.year}" if pd.notna(x) else "")
 
-            # Replace NaN with empty string
             safe_df = safe_df.fillna("")
-
             values_to_append = safe_df.values.tolist()
 
-            # Ensure enough rows
-            needed_rows = (len(values_to_append) + 1)  # +1 if header exists already; we'll append without header
-            current_rows = self.worksheet.row_count
-            # If the worksheet is mostly empty, we append starting from the first empty row
+            # Calculate rows needed
             existing_vals = self.worksheet.get_all_values()
             existing_rows = len(existing_vals)
-
-            start_row = max(existing_rows + 1, 2)  # leave header row as row 1 (assuming header exists)
+            start_row = max(existing_rows + 1, 2)
             end_row = start_row + len(values_to_append) - 1
 
+            current_rows = self.worksheet.row_count
             if end_row > current_rows:
                 add_count = end_row - current_rows
                 self.worksheet.add_rows(add_count)
                 st.info(f"📈 Added {add_count} rows to sheet to fit data.")
 
-            # Calculate end column
+            # Calculate range
             end_col_index = safe_df.shape[1]
             end_col_letter = gspread.utils.rowcol_to_a1(1, end_col_index).split('1')[0]
-
             range_name = f"A{start_row}:{end_col_letter}{end_row}"
+
             st.info(f"📊 Uploading to range: {range_name}")
 
-            # Append values using update (USER_ENTERED) — write without header
+            # Upload data
             self.worksheet.update(values=values_to_append, range_name=range_name, value_input_option="USER_ENTERED")
-
             st.success(f"✅ Successfully uploaded {len(values_to_append)} rows to sheet!")
-            return True
 
+            return True
         except Exception as e:
             st.error(f"❌ Error uploading to Google Sheets: {e}")
             st.text(traceback.format_exc())
@@ -244,173 +235,23 @@ class DSPProcessor:
 # ---------------------------
 #  Helper: Export to Excel
 # ---------------------------
-
-def export_to_excel_bytes(df: pd.DataFrame, sheet_name: str = "Data"):
+def export_to_excel_bytes(df: pd.DataFrame, market: str):
+    """Export DataFrame to Excel bytes."""
     out = io.BytesIO()
     with pd.ExcelWriter(out, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name=sheet_name)
+        df.to_excel(writer, index=False, sheet_name=f"DSP_{market}")
     out.seek(0)
-    return out
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"DSP_{market}_{timestamp}.xlsx"
+    return out, filename
 
 
 # ---------------------------
-#  Streamlit page: dsp_xnurta_page
+#  JSON loader utility
 # ---------------------------
-
-def dsp_xnurta_page():
-    st.subheader("🔐 Step 1: Upload Google Credentials")
-    credentials_file = st.file_uploader(
-        "Upload your credential.json file",
-        type=["json"],
-        key="dsp_credentials_uploader",
-        help="Google Service Account credentials JSON (do not push to GitHub)"
-    )
-
-    credentials_dict = None
-    if credentials_file:
-        try:
-            credentials_dict = json_load_stream(credentials_file)
-            st.success("✅ Credentials loaded")
-            with st.expander("📋 Credential Info"):
-                st.write(f"**Project ID:** {credentials_dict.get('project_id', 'N/A')}")
-                st.write(f"**Client Email:** {credentials_dict.get('client_email', 'N/A')}")
-        except Exception as e:
-            st.error(f"❌ Invalid credentials file: {e}")
-            st.text(traceback.format_exc())
-            return
-    else:
-        st.warning("⚠️ Please upload credential.json to continue")
-        st.info("💡 You need Google Service Account credentials to push data to Google Sheets")
-        return
-
-    st.markdown("---")
-
-    # Step 2: Sheet ID
-    st.subheader("📝 Step 2: Enter Google Sheet ID")
-    sheet_id = st.text_input(
-        "Google Sheet ID",
-        value="1rqH3SePVbpwcj1oD4Bqaa40IbkyKUi7aRBThlBdnEu4",
-        help="Find this in your Google Sheet URL: docs.google.com/spreadsheets/d/{SHEET_ID}/edit",
-        key="dsp_sheet_id"
-    )
-    if not sheet_id:
-        st.warning("⚠️ Please enter Google Sheet ID to continue")
-        return
-
-    st.markdown("---")
-
-    # Step 3: Select Market
-    st.subheader("🌍 Step 3: Select Market")
-    if "dsp_selected_market" not in st.session_state:
-        st.session_state.dsp_selected_market = "US"
-
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        if st.button("🇺🇸 US Market", use_container_width=True, key="dsp_us"):
-            st.session_state.dsp_selected_market = "US"
-    with col2:
-        if st.button("🇨🇦 CA Market", use_container_width=True, key="dsp_ca"):
-            st.session_state.dsp_selected_market = "CA"
-    with col3:
-        if st.button("🇬🇧 UK Market", use_container_width=True, key="dsp_uk"):
-            st.session_state.dsp_selected_market = "UK"
-
-    selected_market = st.session_state.dsp_selected_market
-    st.info(f"📍 Selected Market: **{selected_market}**")
-
-    st.markdown("---")
-
-    # Step 4: Upload files
-    st.subheader("📂 Step 4: Upload DSP Excel files (.xlsx)")
-    uploaded_files = st.file_uploader(
-        "Upload monthly DSP files (multiple allowed)",
-        type=["xlsx"],
-        accept_multiple_files=True,
-        key="dsp_uploaded_files"
-    )
-
-    if not uploaded_files:
-        st.info("📁 Please upload DSP files to continue")
-        return
-
-    st.success(f"✅ {len(uploaded_files)} file(s) uploaded")
-    with st.expander("📁 Uploaded Files"):
-        for f in uploaded_files:
-            st.text(f"• {f.name}")
-
-    st.markdown("---")
-
-    # Step 5: Process files
-    st.subheader("⚙️ Step 5: Process Files")
-    if st.button("🔄 Process Files", use_container_width=True, key="dsp_process"):
-        with st.spinner("Processing DSP files..."):
-            processor = DSPProcessor(credentials_dict, sheet_id)
-            merged_df, processed_files = processor.process_files(uploaded_files)
-            if merged_df.empty:
-                st.error("❌ No data processed")
-                return
-
-            # Save to session state
-            st.session_state.dsp_merged_df = merged_df
-            st.session_state.dsp_processor = processor
-            st.session_state.dsp_processed_files = processed_files
-
-            st.success(f"✅ Successfully processed {len(processed_files)} files")
-            st.info(f"📊 Total rows: {len(merged_df)}")
-
-            # Show sample preview
-            with st.expander("👁️ Preview Data (First 10 rows)"):
-                st.dataframe(merged_df.head(10), use_container_width=True)
-
-    # Step 6: Export / Push
-    if "dsp_merged_df" in st.session_state and not st.session_state.dsp_merged_df.empty:
-        st.markdown("---")
-        st.subheader("📤 Step 6: Export / Push")
-        st.caption("Export to Excel, push to Google Sheets, or both")
-
-        def export_action(df, market):
-            excel_bytes = export_to_excel_bytes(df, sheet_name=f"DSP_{market}")
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"DSP_{market}_{timestamp}.xlsx"
-            return excel_bytes, filename
-
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            excel_bytes, filename = export_action(st.session_state.dsp_merged_df, selected_market)
-            st.download_button(
-                label="📥 Export to Excel",
-                data=excel_bytes,
-                file_name=filename,
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
-            )
-
-        with col2:
-            if st.button("☁️ Push to Google Sheets", use_container_width=True, key="dsp_push"):
-                with st.spinner("Uploading to Google Sheets..."):
-                    success = st.session_state.dsp_processor.append_to_sheets(st.session_state.dsp_merged_df, selected_market)
-                    if success:
-                        st.success(f"✅ Uploaded {len(st.session_state.dsp_merged_df)} rows to Google Sheets!")
-                        st.balloons()
-                    else:
-                        st.error("❌ Upload failed - check logs above")
-
-    else:
-        st.info("📁 Please process files to access export/upload actions")
-
-
-# ---------------------------
-#  Small utility to load json from uploaded file
-# ---------------------------
-
 def json_load_stream(uploaded_file):
-    """
-    uploaded_file: streamlit UploadedFile
-    returns loaded json dict
-    """
+    """Load JSON from uploaded file."""
     try:
-        # uploaded_file may be a SpooledTemporaryFile-like object
         uploaded_file.seek(0)
         import json
         j = json.load(uploaded_file)
@@ -420,3 +261,396 @@ def json_load_stream(uploaded_file):
             uploaded_file.seek(0)
         except Exception:
             pass
+
+
+# ---------------------------
+#  Streamlit page: dsp_xnurta_page
+# ---------------------------
+def dsp_xnurta_page():
+    st.header("📺 DSP XNurta Data Upload")
+    st.markdown("*Upload DSP files, process automatically, and export to Google Sheets*")
+    st.markdown("---")
+
+    # Step 1: Credentials
+    st.subheader("🔐 Step 1: Upload Google Credentials")
+    st.caption("Upload your service account JSON file")
+    
+    credentials_file = st.file_uploader(
+        "Upload credential.json file",
+        type=["json"],
+        key="dsp_credentials_uploader",
+        help="Google Service Account credentials JSON"
+    )
+
+    credentials_dict = None
+    if credentials_file:
+        try:
+            credentials_dict = json_load_stream(credentials_file)
+            st.success("✅ Credentials loaded successfully")
+            
+            with st.expander("📋 Credential Details", expanded=False):
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown(f"**Project ID:**")
+                    st.code(credentials_dict.get('project_id', 'N/A'))
+                with col2:
+                    st.markdown(f"**Client Email:**")
+                    st.code(credentials_dict.get('client_email', 'N/A'))
+        except Exception as e:
+            st.error(f"❌ Invalid credentials file: {e}")
+            st.text(traceback.format_exc())
+            return
+    else:
+        st.info("👆 Upload your Google Service Account credentials to continue")
+        st.markdown("""
+        **📌 How to get credentials:**
+        1. Go to Google Cloud Console
+        2. Create a Service Account
+        3. Download JSON key file
+        4. Share your Google Sheet with the service account email
+        """)
+        return
+
+    st.markdown("---")
+
+    # Step 2: Sheet ID
+    st.subheader("📝 Step 2: Enter Google Sheet ID")
+    st.caption("Find this in your Google Sheet URL")
+    
+    sheet_id = st.text_input(
+        "Google Sheet ID",
+        value="1rqH3SePVbpwcj1oD4Bqaa40IbkyKUi7aRBThlBdnEu4",
+        help="Format: docs.google.com/spreadsheets/d/{SHEET_ID}/edit",
+        key="dsp_sheet_id"
+    )
+
+    if not sheet_id:
+        st.warning("⚠️ Please enter Google Sheet ID to continue")
+        return
+
+    st.success(f"✅ Sheet ID configured: `{sheet_id[:20]}...`")
+    st.markdown("---")
+
+    # Step 3: Select Market
+    st.subheader("🌍 Step 3: Select Target Market")
+    st.caption("Choose the market for your DSP data")
+    
+    if "dsp_selected_market" not in st.session_state:
+        st.session_state.dsp_selected_market = "US"
+
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        is_us = st.session_state.dsp_selected_market == "US"
+        if st.button(
+            "🇺🇸 US Market", 
+            use_container_width=True,
+            type="primary" if is_us else "secondary",
+            key="dsp_us"
+        ):
+            st.session_state.dsp_selected_market = "US"
+            st.rerun()
+    
+    with col2:
+        is_ca = st.session_state.dsp_selected_market == "CA"
+        if st.button(
+            "🇨🇦 CA Market",
+            use_container_width=True,
+            type="primary" if is_ca else "secondary",
+            key="dsp_ca"
+        ):
+            st.session_state.dsp_selected_market = "CA"
+            st.rerun()
+    
+    with col3:
+        is_uk = st.session_state.dsp_selected_market == "UK"
+        if st.button(
+            "🇬🇧 UK Market",
+            use_container_width=True,
+            type="primary" if is_uk else "secondary",
+            key="dsp_uk"
+        ):
+            st.session_state.dsp_selected_market = "UK"
+            st.rerun()
+
+    selected_market = st.session_state.dsp_selected_market
+    st.info(f"📍 **Current Selection:** {selected_market} Market")
+    st.markdown("---")
+
+    # Step 4: Upload, Process & Export (Combined)
+    st.subheader("📂 Step 4: Upload, Process & Export Data")
+    st.markdown("*Files will be automatically processed upon upload*")
+    
+    uploaded_files = st.file_uploader(
+        "Upload DSP Excel files (YYYYMMDD format in filename)",
+        type=['xlsx'],
+        accept_multiple_files=True,
+        key="dsp_uploader",
+        help="Drag and drop or click to browse. Files will be processed automatically."
+    )
+
+    if uploaded_files:
+        # Show upload success
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.success(f"✅ {len(uploaded_files)} file(s) uploaded successfully")
+        with col2:
+            total_size = sum(f.size for f in uploaded_files) / (1024 * 1024)
+            st.metric("Total Size", f"{total_size:.2f} MB")
+
+        # Compact file list
+        with st.expander("📁 Uploaded Files", expanded=False):
+            for idx, file in enumerate(uploaded_files, 1):
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.markdown(f"**{idx}.** {file.name}")
+                with col2:
+                    st.caption(f"{file.size / 1024:.1f} KB")
+
+        st.markdown("---")
+
+        # Auto-process logic
+        current_file_names = [f.name for f in uploaded_files]
+        
+        if 'dsp_last_processed_files' not in st.session_state:
+            st.session_state.dsp_last_processed_files = []
+
+        # Process if files changed
+        if current_file_names != st.session_state.dsp_last_processed_files:
+            progress_placeholder = st.empty()
+            status_placeholder = st.empty()
+
+            with status_placeholder.container():
+                st.markdown("### ⚙️ Processing Files...")
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+
+            try:
+                status_text.text("Initializing DSP processor...")
+                progress_bar.progress(20)
+
+                processor = DSPProcessor(credentials_dict, sheet_id)
+
+                status_text.text("Reading and validating files...")
+                progress_bar.progress(40)
+
+                result_df, processed_files = processor.process_files(uploaded_files)
+
+                status_text.text("Finalizing data...")
+                progress_bar.progress(80)
+
+                # Store in session state
+                st.session_state.dsp_result_df = result_df
+                st.session_state.dsp_processor = processor
+                st.session_state.dsp_processed_files = processed_files
+                st.session_state.dsp_last_processed_files = current_file_names
+
+                progress_bar.progress(100)
+                status_text.text("✅ Processing complete!")
+
+                time.sleep(0.5)
+                status_placeholder.empty()
+
+                if not result_df.empty:
+                    st.success(f"✅ Successfully processed {len(processed_files)} file(s)")
+
+                    # Metrics
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("📊 Total Rows", f"{len(result_df):,}")
+                    with col2:
+                        st.metric("📝 Columns", len(result_df.columns))
+                    with col3:
+                        st.metric("📁 Files", len(processed_files))
+                    with col4:
+                        completeness = (1 - result_df.isnull().sum().sum() / (len(result_df) * len(result_df.columns))) * 100
+                        st.metric("✓ Completeness", f"{completeness:.1f}%")
+                else:
+                    st.error("❌ No data found in uploaded files")
+
+            except Exception as e:
+                status_placeholder.empty()
+                st.error(f"❌ Error processing files: {str(e)}")
+                st.exception(e)
+                for key in ['dsp_result_df', 'dsp_processor', 'dsp_processed_files', 'dsp_last_processed_files']:
+                    if key in st.session_state:
+                        del st.session_state[key]
+
+        # Display processed data
+        if 'dsp_result_df' in st.session_state and not st.session_state.dsp_result_df.empty:
+            result_df = st.session_state.dsp_result_df
+            processed_files = st.session_state.dsp_processed_files
+
+            st.markdown("---")
+
+            # Preview section
+            st.markdown("### 👁️ Data Preview")
+
+            col1, col2, col3 = st.columns([2, 1, 1])
+            with col1:
+                preview_rows = st.slider(
+                    "Preview rows",
+                    min_value=5,
+                    max_value=min(50, len(result_df)),
+                    value=10,
+                    step=5
+                )
+            with col2:
+                show_all = st.checkbox("All columns", value=False)
+            with col3:
+                show_summary = st.checkbox("Show summary", value=False)
+
+            if show_summary:
+                with st.expander("📋 Processing Details", expanded=True):
+                    for pf in processed_files:
+                        st.markdown(f"✓ **{pf['file_name']}** → {pf['rows_count']} rows")
+
+            display_df = result_df if show_all else (result_df.iloc[:, :8] if len(result_df.columns) > 8 else result_df)
+            st.dataframe(
+                display_df.head(preview_rows),
+                use_container_width=True,
+                height=300
+            )
+
+            if not show_all and len(result_df.columns) > 8:
+                st.caption(f"Showing 8 of {len(result_df.columns)} columns. Enable 'All columns' to see more.")
+
+            st.markdown("---")
+
+            # Export section
+            st.markdown("### 📤 Export Options")
+            st.caption("Choose how to save or upload your processed data")
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.markdown("#### 📥 Download Locally")
+                st.caption("Save processed data to your computer")
+
+                # Excel download
+                excel_data, filename = export_to_excel_bytes(result_df, selected_market)
+                st.download_button(
+                    label="💾 Download Excel",
+                    data=excel_data,
+                    file_name=filename,
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                    help="Download as Excel file (.xlsx)"
+                )
+
+                # CSV download
+                csv = result_df.to_csv(index=False).encode('utf-8')
+                csv_filename = filename.replace('.xlsx', '.csv')
+                st.download_button(
+                    label="📄 Download CSV",
+                    data=csv,
+                    file_name=csv_filename,
+                    mime="text/csv",
+                    use_container_width=True,
+                    help="Download as CSV file (lighter format)"
+                )
+
+            with col2:
+                st.markdown("#### ☁️ Upload to Cloud")
+                st.caption("Push data directly to Google Sheets")
+
+                st.info(f"**Target:** {selected_market} market sheet\n\n**Rows:** {len(result_df):,}")
+
+                if st.button(
+                    "🚀 Push to Google Sheets",
+                    type="primary",
+                    use_container_width=True,
+                    help="Upload data to your Google Sheets"
+                ):
+                    upload_placeholder = st.empty()
+
+                    with upload_placeholder.container():
+                        st.markdown("---")
+                        progress_bar = st.progress(0)
+                        status_text = st.empty()
+
+                        try:
+                            status_text.text("Connecting to Google Sheets...")
+                            progress_bar.progress(25)
+
+                            status_text.text("Uploading data...")
+                            progress_bar.progress(50)
+
+                            success = st.session_state.dsp_processor.append_to_sheets(result_df, selected_market)
+
+                            status_text.text("Verifying upload...")
+                            progress_bar.progress(90)
+
+                            if success:
+                                progress_bar.progress(100)
+                                status_text.text("✅ Upload complete!")
+                                time.sleep(0.5)
+                                upload_placeholder.empty()
+
+                                st.success(f"✅ Successfully uploaded {len(result_df):,} rows to Google Sheets!")
+                                st.balloons()
+
+                                with st.expander("📊 Upload Summary", expanded=True):
+                                    st.markdown(f"""
+                                    - **Market:** {selected_market}
+                                    - **Rows uploaded:** {len(result_df):,}
+                                    - **Columns:** {len(result_df.columns)}
+                                    - **Files processed:** {len(processed_files)}
+                                    - **Timestamp:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+                                    """)
+                            else:
+                                upload_placeholder.empty()
+                                st.error("❌ Upload failed - Please check the error messages above")
+
+                        except Exception as e:
+                            upload_placeholder.empty()
+                            st.error(f"❌ Upload failed: {str(e)}")
+                            with st.expander("🔍 Error Details"):
+                                st.code(traceback.format_exc())
+
+            # Additional actions
+            st.markdown("---")
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.caption("💡 **Tip:** Download a local copy before uploading to Google Sheets as backup")
+            with col2:
+                if st.button("🔄 Process New Files", use_container_width=True):
+                    for key in ['dsp_result_df', 'dsp_processor', 'dsp_processed_files', 'dsp_last_processed_files']:
+                        if key in st.session_state:
+                            del st.session_state[key]
+                    st.rerun()
+
+    else:
+        st.info("👆 **Upload Excel files to get started**")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("""
+            **📌 File Requirements:**
+            - Format: `.xlsx` (Excel 2007+)
+            - Filename must contain: `YYYYMMDD`
+            - Example: `dsp_report_20251015.xlsx`
+            - Must have 'Creative' column
+            """)
+
+        with col2:
+            st.markdown("""
+            **⚡ What happens next:**
+            1. Files are validated
+            2. Data is automatically processed
+            3. Preview & export options appear
+            4. Choose download or upload to Sheets
+            """)
+
+        with st.expander("📝 Filename Examples", expanded=False):
+            st.code("""
+✅ Valid filenames:
+- dsp_20251015.xlsx
+- report_20251231.xlsx
+- monthly_20250101.xlsx
+
+❌ Invalid filenames:
+- dsp_report.xlsx (no date)
+- data_2025_10_15.xlsx (wrong format)
+- sales-20251015.xlsx (works but not recommended)
+            """)
