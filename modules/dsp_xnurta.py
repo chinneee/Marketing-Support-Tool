@@ -9,6 +9,49 @@ import time
 from datetime import datetime
 from google.oauth2.service_account import Credentials
 import gspread
+import json
+
+# ============================================================
+# METRICS TRACKING FUNCTION
+# ============================================================
+
+def update_metrics(success: bool, market: str):
+    """
+    Update upload metrics in session state WITHOUT triggering rerun
+    """
+    try:
+        # Initialize if needed
+        current_date = datetime.now().date()
+        
+        if 'last_upload_date' not in st.session_state:
+            st.session_state.last_upload_date = current_date
+            st.session_state.total_uploads = 0
+            st.session_state.successful_uploads = 0
+            st.session_state.failed_uploads = 0
+            st.session_state.today_uploads = 0
+            st.session_state.active_markets = set()
+            st.session_state.last_updated = datetime.now()
+        
+        # Reset today's count if new day
+        if st.session_state.last_upload_date != current_date:
+            st.session_state.today_uploads = 0
+            st.session_state.last_upload_date = current_date
+        
+        # Update counters
+        st.session_state.total_uploads += 1
+        st.session_state.today_uploads += 1
+        
+        if success:
+            st.session_state.successful_uploads += 1
+        else:
+            st.session_state.failed_uploads += 1
+        
+        # Track active market
+        st.session_state.active_markets.add(market)
+        st.session_state.last_updated = datetime.now()
+        
+    except Exception as e:
+        print(f"Warning: Could not update metrics: {e}")
 
 # ---------------------------
 #  DSP Processor
@@ -52,7 +95,7 @@ class DSPProcessor:
                 st.warning(f"⚠️ Worksheet '{worksheet_name}' not found. Creating new one...")
                 self.worksheet = self.spreadsheet.add_worksheet(title=worksheet_name, rows="2000", cols="50")
                 st.success(f"✅ Created new worksheet: {worksheet_name}")
-
+            
             return True
         except Exception as e:
             st.error(f"❌ Error initializing Google Sheets: {e}")
@@ -224,13 +267,12 @@ class DSPProcessor:
             # Upload data
             self.worksheet.update(values=values_to_append, range_name=range_name, value_input_option="USER_ENTERED")
             st.success(f"✅ Successfully uploaded {len(values_to_append)} rows to sheet!")
-
             return True
+
         except Exception as e:
             st.error(f"❌ Error uploading to Google Sheets: {e}")
             st.text(traceback.format_exc())
             return False
-
 
 # ---------------------------
 #  Helper: Export to Excel
@@ -245,7 +287,6 @@ def export_to_excel_bytes(df: pd.DataFrame, market: str):
     filename = f"DSP_{market}_{timestamp}.xlsx"
     return out, filename
 
-
 # ---------------------------
 #  JSON loader utility
 # ---------------------------
@@ -253,7 +294,6 @@ def json_load_stream(uploaded_file):
     """Load JSON from uploaded file."""
     try:
         uploaded_file.seek(0)
-        import json
         j = json.load(uploaded_file)
         return j
     finally:
@@ -262,12 +302,16 @@ def json_load_stream(uploaded_file):
         except Exception:
             pass
 
-
 # ---------------------------
 #  Streamlit page: dsp_xnurta_page
 # ---------------------------
 def dsp_xnurta_page():
-
+    # ✅ Preserve credentials across reruns
+    if 'dsp_credentials_preserved' not in st.session_state:
+        st.session_state.dsp_credentials_preserved = None
+    if 'dsp_sheet_id_preserved' not in st.session_state:
+        st.session_state.dsp_sheet_id_preserved = None
+    
     # Step 1: Credentials
     st.subheader("🔐 Step 1: Upload Google Credentials")
     
@@ -277,44 +321,55 @@ def dsp_xnurta_page():
         key="dsp_credentials_uploader",
         help="Google Service Account credentials JSON"
     )
-
+    
     credentials_dict = None
     if credentials_file:
         try:
             credentials_dict = json_load_stream(credentials_file)
             st.success("✅ Credentials loaded successfully")
+            # ✅ Preserve credentials
+            st.session_state.dsp_credentials_preserved = credentials_dict
         except Exception as e:
             st.error(f"❌ Invalid credentials file: {e}")
             st.text(traceback.format_exc())
             return
+    elif st.session_state.dsp_credentials_preserved:
+        # ✅ Restore from preserved state
+        credentials_dict = st.session_state.dsp_credentials_preserved
+        st.info("ℹ️ Using previously loaded credentials")
     else:
         st.warning("⚠️ Please upload credential.json file to continue")
         return
-
+    
     st.markdown("---")
-
+    
     # Step 2: Sheet ID
     st.subheader("📝 Step 2: Enter Google Sheet ID")
     
     sheet_id = st.text_input(
         "Google Sheet ID",
-        value="1rqH3SePVbpwcj1oD4Bqaa40IbkyKUi7aRBThlBdnEu4",
+        value=st.session_state.dsp_sheet_id_preserved or "1rqH3SePVbpwcj1oD4Bqaa40IbkyKUi7aRBThlBdnEu4",
         help="Format: docs.google.com/spreadsheets/d/{SHEET_ID}/edit",
         key="dsp_sheet_id"
     )
-
+    
+    if sheet_id:
+        # ✅ Preserve sheet ID
+        st.session_state.dsp_sheet_id_preserved = sheet_id
+    
     if not sheet_id:
         st.warning("⚠️ Please enter Google Sheet ID to continue")
         return
+    
     st.markdown("---")
-
-    # Step 3: Select Market
+    
+    # Step 3: Select Market - ✅ REMOVED st.rerun()
     st.subheader("🌍 Step 3: Select Target Market")
     st.caption("Choose the market for your DSP data")
     
     if "dsp_selected_market" not in st.session_state:
         st.session_state.dsp_selected_market = "US"
-
+    
     col1, col2, col3 = st.columns(3)
     
     with col1:
@@ -326,7 +381,7 @@ def dsp_xnurta_page():
             key="dsp_us"
         ):
             st.session_state.dsp_selected_market = "US"
-            st.rerun()
+            # ✅ REMOVED st.rerun() - let Streamlit handle it naturally
     
     with col2:
         is_ca = st.session_state.dsp_selected_market == "CA"
@@ -337,7 +392,7 @@ def dsp_xnurta_page():
             key="dsp_ca"
         ):
             st.session_state.dsp_selected_market = "CA"
-            st.rerun()
+            # ✅ REMOVED st.rerun()
     
     with col3:
         is_uk = st.session_state.dsp_selected_market == "UK"
@@ -348,12 +403,13 @@ def dsp_xnurta_page():
             key="dsp_uk"
         ):
             st.session_state.dsp_selected_market = "UK"
-            st.rerun()
-
+            # ✅ REMOVED st.rerun()
+    
     selected_market = st.session_state.dsp_selected_market
     st.info(f"📍 **Current Selection:** {selected_market} Market")
+    
     st.markdown("---")
-
+    
     # Step 4: Upload, Process & Export (Combined)
     st.subheader("📂 Step 4: Upload, Process & Export Data")
     
@@ -364,7 +420,7 @@ def dsp_xnurta_page():
         key="dsp_uploader",
         help="Drag and drop or click to browse. Files will be processed automatically."
     )
-
+    
     if uploaded_files:
         # Show upload success
         col1, col2 = st.columns([3, 1])
@@ -373,53 +429,51 @@ def dsp_xnurta_page():
         with col2:
             total_size = sum(f.size for f in uploaded_files) / (1024 * 1024)
             st.metric("Total Size", f"{total_size:.2f} MB")
-
-
+        
         # Auto-process logic
         current_file_names = [f.name for f in uploaded_files]
         
         if 'dsp_last_processed_files' not in st.session_state:
             st.session_state.dsp_last_processed_files = []
-
+        
         # Process if files changed
         if current_file_names != st.session_state.dsp_last_processed_files:
             progress_placeholder = st.empty()
             status_placeholder = st.empty()
-
+            
             with status_placeholder.container():
                 st.markdown("### ⚙️ Processing Files...")
                 progress_bar = st.progress(0)
                 status_text = st.empty()
-
+            
             try:
                 status_text.text("Initializing DSP processor...")
                 progress_bar.progress(20)
-
+                
                 processor = DSPProcessor(credentials_dict, sheet_id)
-
+                
                 status_text.text("Reading and validating files...")
                 progress_bar.progress(40)
-
+                
                 result_df, processed_files = processor.process_files(uploaded_files)
-
+                
                 status_text.text("Finalizing data...")
                 progress_bar.progress(80)
-
+                
                 # Store in session state
                 st.session_state.dsp_result_df = result_df
                 st.session_state.dsp_processor = processor
                 st.session_state.dsp_processed_files = processed_files
                 st.session_state.dsp_last_processed_files = current_file_names
-
+                
                 progress_bar.progress(100)
                 status_text.text("✅ Processing complete!")
-
                 time.sleep(0.5)
                 status_placeholder.empty()
-
+                
                 if not result_df.empty:
                     st.success(f"✅ Successfully processed {len(processed_files)} file(s)")
-
+                    
                     # Metrics
                     col1, col2, col3, col4 = st.columns(4)
                     with col1:
@@ -433,7 +487,7 @@ def dsp_xnurta_page():
                         st.metric("✓ Completeness", f"{completeness:.1f}%")
                 else:
                     st.error("❌ No data found in uploaded files")
-
+                    
             except Exception as e:
                 status_placeholder.empty()
                 st.error(f"❌ Error processing files: {str(e)}")
@@ -441,12 +495,12 @@ def dsp_xnurta_page():
                 for key in ['dsp_result_df', 'dsp_processor', 'dsp_processed_files', 'dsp_last_processed_files']:
                     if key in st.session_state:
                         del st.session_state[key]
-
+        
         # Display processed data
         if 'dsp_result_df' in st.session_state and not st.session_state.dsp_result_df.empty:
             result_df = st.session_state.dsp_result_df
             processed_files = st.session_state.dsp_processed_files
-
+            
             col1, col2, col3 = st.columns([2, 1, 1])
             with col1:
                 preview_rows = st.slider(
@@ -458,29 +512,29 @@ def dsp_xnurta_page():
                 )
             with col2:
                 show_all = st.checkbox("All columns", value=False)
-
+            
             display_df = result_df if show_all else (result_df.iloc[:, :8] if len(result_df.columns) > 8 else result_df)
             st.dataframe(
                 display_df.head(preview_rows),
                 use_container_width=True,
                 height=300
             )
-
+            
             if not show_all and len(result_df.columns) > 8:
                 st.caption(f"Showing 8 of {len(result_df.columns)} columns. Enable 'All columns' to see more.")
-
+            
             st.markdown("---")
-
+            
             # Export section
             st.markdown("### 📤 Export Options")
             st.caption("Choose how to save or upload your processed data")
-
+            
             col1, col2 = st.columns(2)
-
+            
             with col1:
                 st.markdown("#### 📥 Download Locally")
                 st.caption("Save processed data to your computer")
-
+                
                 # Excel download
                 excel_data, filename = export_to_excel_bytes(result_df, selected_market)
                 st.download_button(
@@ -491,7 +545,7 @@ def dsp_xnurta_page():
                     use_container_width=True,
                     help="Download as Excel file (.xlsx)"
                 )
-
+                
                 # CSV download
                 csv = result_df.to_csv(index=False).encode('utf-8')
                 csv_filename = filename.replace('.xlsx', '.csv')
@@ -503,47 +557,61 @@ def dsp_xnurta_page():
                     use_container_width=True,
                     help="Download as CSV file (lighter format)"
                 )
-
+            
             with col2:
                 st.markdown("#### ☁️ Upload to Cloud")
                 st.caption("Push data directly to Google Sheets")
-
+                
                 st.info(f"**Target:** {selected_market} market sheet\n\n**Rows:** {len(result_df):,}")
-
+                
+                # ✅ Add upload flag to prevent double-trigger
+                if 'dsp_upload_in_progress' not in st.session_state:
+                    st.session_state.dsp_upload_in_progress = False
+                
                 if st.button(
                     "🚀 Push to Google Sheets",
                     type="primary",
                     use_container_width=True,
-                    help="Upload data to your Google Sheets"
+                    help="Upload data to your Google Sheets",
+                    disabled=st.session_state.dsp_upload_in_progress
                 ):
+                    st.session_state.dsp_upload_in_progress = True
+                    
                     upload_placeholder = st.empty()
-
+                    
                     with upload_placeholder.container():
                         st.markdown("---")
                         progress_bar = st.progress(0)
                         status_text = st.empty()
-
+                        
                         try:
                             status_text.text("Connecting to Google Sheets...")
                             progress_bar.progress(25)
-
+                            
                             status_text.text("Uploading data...")
                             progress_bar.progress(50)
-
+                            
+                            # 🎯 UPLOAD TO SHEETS
                             success = st.session_state.dsp_processor.append_to_sheets(result_df, selected_market)
-
+                            
                             status_text.text("Verifying upload...")
                             progress_bar.progress(90)
-
+                            
                             if success:
                                 progress_bar.progress(100)
                                 status_text.text("✅ Upload complete!")
                                 time.sleep(0.5)
                                 upload_placeholder.empty()
-
+                                
+                                # ✅ UPDATE METRICS - SUCCESS
+                                update_metrics(success=True, market=selected_market)
+                                
+                                # ✅ Reset flag
+                                st.session_state.dsp_upload_in_progress = False
+                                
                                 st.success(f"✅ Successfully uploaded {len(result_df):,} rows to Google Sheets!")
                                 st.balloons()
-
+                                
                                 with st.expander("📊 Upload Summary", expanded=True):
                                     st.markdown(f"""
                                     - **Market:** {selected_market}
@@ -554,18 +622,31 @@ def dsp_xnurta_page():
                                     """)
                             else:
                                 upload_placeholder.empty()
+                                
+                                # ❌ UPDATE METRICS - FAILURE
+                                update_metrics(success=False, market=selected_market)
+                                
+                                # ✅ Reset flag
+                                st.session_state.dsp_upload_in_progress = False
+                                
                                 st.error("❌ Upload failed - Please check the error messages above")
-
+                                
                         except Exception as e:
                             upload_placeholder.empty()
+                            
+                            # ❌ UPDATE METRICS - ERROR
+                            update_metrics(success=False, market=selected_market)
+                            
+                            # ✅ Reset flag
+                            st.session_state.dsp_upload_in_progress = False
+                            
                             st.error(f"❌ Upload failed: {str(e)}")
                             with st.expander("🔍 Error Details"):
                                 st.code(traceback.format_exc())
-
-
+    
     else:
         st.info("👆 **Upload Excel files to get started**")
-
+        
         col1, col2 = st.columns(2)
         with col1:
             st.markdown("""
@@ -575,7 +656,7 @@ def dsp_xnurta_page():
             - Example: `dsp_report_20251015.xlsx`
             - Must have 'Creative' column
             """)
-
+        
         with col2:
             st.markdown("""
             **⚡ What happens next:**
