@@ -295,17 +295,17 @@ def main():
     
     with col1:
         st.markdown("**Need Help?**")
-        st.markdown("📧 trinh.nguyen@aprime.so")
+        st.markdown("trinh.nguyen@aprime.so")
     
     with col2:
         st.markdown("**Documentation**")
         # Khi click thì bật/tắt hiển thị docs
-        if st.button("📚 View Docs", key="view_docs"):
+        if st.button("View Docs", key="view_docs"):
             st.session_state.show_docs = not st.session_state.get("show_docs", False)
     
     with col3:
         st.markdown("**Report Issues**")
-        st.markdown("🐛 [Bug Tracker](#)")
+        st.markdown("[Bug Tracker](#)")
 
     # --- Docs section ---
     if st.session_state.get("show_docs", False):
