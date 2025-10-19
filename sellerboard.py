@@ -352,7 +352,6 @@ def sellerboard_page():
     
    # Combined Step: Upload, Process & Export Data Files
     st.subheader("📂 Step 4: Upload, Process & Export Data")
-    st.markdown("*Upload your files - they'll be processed automatically and ready for export*")
     
     uploaded_files = st.file_uploader(
         "Upload Excel files (DD_MM_YYYY format in filename)",
