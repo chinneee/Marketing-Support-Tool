@@ -305,5 +305,23 @@ def main():
         st.markdown("**Report Issues**")
         st.markdown("🐛 [Bug Tracker](#)")
 
+    # --- Docs section ---
+    if st.session_state.get("show_docs", False):
+        st.markdown("---")
+        st.markdown("## 📖 Documentation")
+        st.markdown("""
+        **Hướng dẫn sử dụng:**
+
+        1. Tải file CSV từ hệ thống báo cáo.
+        2. Upload file vào app ở phần *Upload Section*.
+        3. Chọn ngày cần xử lý.
+        4. Nhấn **Process** để tạo dữ liệu hợp nhất.
+        5. Xuất kết quả ra Excel hoặc đẩy lên Google Sheets.
+
+        💡 *Mẹo:* Bạn có thể xem lại hướng dẫn này bất kỳ lúc nào bằng cách nhấn "View Docs".
+        """)
+
 if __name__ == "__main__":
+    if "show_docs" not in st.session_state:
+        st.session_state.show_docs = False
     main()
