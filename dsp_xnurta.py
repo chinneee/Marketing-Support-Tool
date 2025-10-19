@@ -288,7 +288,7 @@ def dsp_xnurta_page():
             st.text(traceback.format_exc())
             return
     else:
-        st.info("👆 Upload your Google Service Account credentials to continue")
+        st.warning("⚠️ Please upload credential.json file to continue")
         st.markdown("""
         **📌 How to get credentials:**
         1. Go to Google Cloud Console
