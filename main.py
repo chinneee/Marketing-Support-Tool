@@ -12,93 +12,21 @@ def main():
         initial_sidebar_state="expanded"
     )
     
-# Enhanced Custom CSS
+    # Enhanced Custom CSS
     st.markdown("""
         <style>
-        /* ============================================
-           MAIN AREA - Light Gray Background
-        ============================================ */
+        /* Main container styling */
         .main {
-            background-color: #F5F7FA !important;
             padding-top: 1rem;
         }
         
-        .block-container {
-            padding: 2rem 3rem;
-        }
-        
-        /* ============================================
-           SIDEBAR - White Background with Black Text
-        ============================================ */
-        [data-testid="stSidebar"] {
-            background-color: #FFFFFF !important;
-            border-right: 1px solid #E5E7EB;
-            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
-        }
-        
-        /* Sidebar text - Black */
-        [data-testid="stSidebar"] * {
-            color: #1F2937 !important;
-        }
-        
-        /* Sidebar titles */
-        [data-testid="stSidebar"] h1,
-        [data-testid="stSidebar"] h2,
-        [data-testid="stSidebar"] h3 {
-            color: #1F2937 !important;
-            font-weight: 700;
-        }
-        
-        /* ============================================
-           RADIO BUTTONS (Navigation)
-        ============================================ */
-        .stRadio > label {
-            font-weight: 600;
-            color: #1F2937;
-        }
-        
-        /* Navigation items in sidebar */
-        [data-testid="stSidebar"] .stRadio > div > label {
-            background-color: #F9FAFB;
-            border: 1px solid #E5E7EB;
-            border-radius: 8px;
-            padding: 0.875rem 1rem;
-            margin-bottom: 0.5rem;
-            transition: all 0.2s ease;
-            font-weight: 500;
-            color: #1F2937 !important;
-        }
-        
-        [data-testid="stSidebar"] .stRadio > div > label:hover {
-            background-color: #F3F4F6;
-            border-color: #FF4B4B;
-            transform: translateX(2px);
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-        
-        /* Active/Selected navigation item */
-        [data-testid="stSidebar"] .stRadio > div > label[data-checked="true"] {
-            background: linear-gradient(135deg, #FF4B4B 0%, #FF6B6B 100%);
-            border-color: transparent;
-            color: white !important;
-            box-shadow: 0 4px 6px rgba(255, 75, 75, 0.3);
-            font-weight: 600;
-        }
-        
-        [data-testid="stSidebar"] .stRadio > div > label[data-checked="true"] * {
-            color: white !important;
-        }
-        
-        /* ============================================
-           BUTTONS - White Cards on Gray Background
-        ============================================ */
+        /* Button improvements */
         .stButton>button {
             height: 3rem;
             border-radius: 8px;
-            font-weight: 600;
-            transition: all 0.2s ease;
+            font-weight: 500;
+            transition: all 0.3s ease;
             border: none;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
         
         .stButton>button:hover {
@@ -106,222 +34,22 @@ def main():
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
         
-        /* Primary button */
-        .stButton>button[kind="primary"] {
-            background: linear-gradient(135deg, #FF4B4B 0%, #FF6B6B 100%);
-            color: white;
+        /* Radio button styling */
+        .stRadio > label {
+            font-weight: 500;
+            color: #262730;
         }
         
-        /* Secondary button */
-        .stButton>button[kind="secondary"] {
-            background: #FFFFFF;
-            color: #1F2937;
-            border: 1px solid #E5E7EB;
+        /* Sidebar improvements */
+        [data-testid="stSidebar"] {
+            background-color: #e3e6e8;
         }
         
-        .stButton>button[kind="secondary"]:hover {
-            background: #F9FAFB;
-            border-color: #FF4B4B;
-            color: #FF4B4B;
-        }
-        
-        /* ============================================
-           DOWNLOAD BUTTONS
-        ============================================ */
-        .stDownloadButton>button {
-            background: #FFFFFF;
-            border: 1px solid #E5E7EB;
-            border-radius: 8px;
-            padding: 0.625rem 1.25rem;
-            min-height: 2.75rem;
-            font-weight: 600;
-            color: #1F2937;
-            transition: all 0.2s ease;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-        
-        .stDownloadButton>button:hover {
-            border-color: #FF4B4B;
-            color: #FF4B4B;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        }
-        
-        /* ============================================
-           ALERT BOXES - White Cards with Colors
-        ============================================ */
+        /* Info/Success/Warning boxes */
         .stAlert {
-            background-color: #FFFFFF !important;
-            border-radius: 10px;
+            border-radius: 8px;
             border-left: 4px solid;
-            padding: 1.25rem 1.5rem;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            margin: 1rem 0;
         }
-        
-        /* Success */
-        div[data-testid="stSuccess"] {
-            background-color: #ECFDF5 !important;
-            border-left-color: #10B981;
-            color: #065F46;
-        }
-        
-        /* Info */
-        div[data-testid="stInfo"] {
-            background-color: #EFF6FF !important;
-            border-left-color: #3B82F6;
-            color: #1E40AF;
-        }
-        
-        /* Warning */
-        div[data-testid="stWarning"] {
-            background-color: #FFFBEB !important;
-            border-left-color: #F59E0B;
-            color: #92400E;
-        }
-        
-        /* Error */
-        div[data-testid="stError"] {
-            background-color: #FEF2F2 !important;
-            border-left-color: #EF4444;
-            color: #991B1B;
-        }
-        
-        /* ============================================
-           METRICS - White Cards that Pop
-        ============================================ */
-        [data-testid="stMetric"] {
-            background: #FFFFFF;
-            border: 1px solid #E5E7EB;
-            border-radius: 12px;
-            padding: 1.5rem;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            transition: all 0.2s ease;
-        }
-        
-        [data-testid="stMetric"]:hover {
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            transform: translateY(-2px);
-            border-color: #D1D5DB;
-        }
-        
-        [data-testid="stMetricLabel"] {
-            font-size: 0.875rem;
-            font-weight: 600;
-            color: #6B7280 !important;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-        
-        [data-testid="stMetricValue"] {
-            font-size: 2rem;
-            font-weight: 700;
-            color: #1F2937 !important;
-        }
-        
-        /* ============================================
-           INPUTS - White on Gray
-        ============================================ */
-        .stTextInput > div > div > input,
-        .stNumberInput > div > div > input {
-            background: #FFFFFF;
-            border: 1px solid #E5E7EB;
-            border-radius: 8px;
-            padding: 0.75rem 1rem;
-            color: #1F2937;
-            transition: all 0.2s ease;
-        }
-        
-        .stTextInput > div > div > input:focus,
-        .stNumberInput > div > div > input:focus {
-            border-color: #FF4B4B;
-            box-shadow: 0 0 0 3px rgba(255, 75, 75, 0.1);
-            background: #FFFFFF;
-        }
-        
-        /* File Uploader */
-        [data-testid="stFileUploader"] {
-            background: #FFFFFF;
-            border: 2px dashed #E5E7EB;
-            border-radius: 12px;
-            padding: 2rem;
-            transition: all 0.2s ease;
-        }
-        
-        [data-testid="stFileUploader"]:hover {
-            border-color: #FF4B4B;
-            background: #FFFBFB;
-        }
-        
-        /* ============================================
-           DATAFRAME - White Tables
-        ============================================ */
-        .stDataFrame {
-            background: #FFFFFF;
-            border: 1px solid #E5E7EB;
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-        
-        .stDataFrame thead tr th {
-            background: #F9FAFB !important;
-            color: #1F2937 !important;
-            font-weight: 700 !important;
-            text-transform: uppercase;
-            font-size: 0.75rem;
-            letter-spacing: 0.05em;
-            padding: 1rem !important;
-            border-bottom: 2px solid #E5E7EB !important;
-        }
-        
-        .stDataFrame tbody tr:hover {
-            background: #F9FAFB !important;
-        }
-        
-        /* ============================================
-           EXPANDERS - White Cards
-        ============================================ */
-        .streamlit-expanderHeader {
-            background: #FFFFFF;
-            border: 1px solid #E5E7EB;
-            border-radius: 8px;
-            padding: 1rem 1.25rem;
-            font-weight: 600;
-            color: #1F2937;
-            transition: all 0.2s ease;
-        }
-        
-        .streamlit-expanderHeader:hover {
-            background: #F9FAFB;
-            border-color: #FF4B4B;
-        }
-        
-        .streamlit-expanderContent {
-            background: #FFFFFF;
-            border: 1px solid #E5E7EB;
-            border-top: none;
-            border-radius: 0 0 8px 8px;
-            padding: 1.25rem;
-        }
-        
-        /* ============================================
-           PROGRESS BAR
-        ============================================ */
-        .stProgress > div > div > div > div {
-            background: linear-gradient(90deg, #FF4B4B 0%, #FF6B6B 100%);
-            border-radius: 4px;
-        }
-        
-        .stProgress > div > div {
-            background: #E5E7EB;
-            border-radius: 4px;
-            height: 8px;
-        }
-        
-        /* ============================================
-           CUSTOM COMPONENTS
-        ============================================ */
         
         /* Title gradient effect */
         .gradient-title {
@@ -335,23 +63,14 @@ def main():
         
         /* Card-like containers */
         .info-card {
-            background: #FFFFFF;
+            background: white;
             padding: 1.5rem;
-            border-radius: 12px;
-            border: 1px solid #E5E7EB;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             margin: 1rem 0;
-            transition: all 0.2s ease;
         }
         
-        .info-card:hover {
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            transform: translateY(-2px);
-        }
-        
-        /* ============================================
-           ANIMATIONS
-        ============================================ */
+        /* Animated loading */
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
@@ -361,43 +80,16 @@ def main():
             animation: pulse 2s ease-in-out infinite;
         }
         
-        /* ============================================
-           DIVIDER
-        ============================================ */
+        /* Hide default streamlit elements */
+        #MainMenu {visibility: hidden;}
+        footer {visibility: hidden;}
+        
+        /* Divider styling */
         hr {
             margin: 2rem 0;
             border: none;
-            border-top: 1px solid #E5E7EB;
+            border-top: 2px solid #f0f2f6;
         }
-        
-        /* ============================================
-           SCROLLBAR
-        ============================================ */
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        
-        ::-webkit-scrollbar-track {
-            background: #F3F4F6;
-            border-radius: 4px;
-        }
-        
-        ::-webkit-scrollbar-thumb {
-            background: #D1D5DB;
-            border-radius: 4px;
-        }
-        
-        ::-webkit-scrollbar-thumb:hover {
-            background: #9CA3AF;
-        }
-        
-        /* ============================================
-           HIDE DEFAULT ELEMENTS
-        ============================================ */
-        #MainMenu {visibility: hidden;}
-        footer {visibility: hidden;}
-        header {visibility: hidden;}
         </style>
     """, unsafe_allow_html=True)
     
