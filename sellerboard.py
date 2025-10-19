@@ -299,9 +299,6 @@ def sellerboard_page():
         credentials_dict = load_credentials_from_file(credentials_file)
         if credentials_dict:
             st.success("✅ Credentials loaded successfully!")
-            with st.expander("📋 Credential Info"):
-                st.write(f"**Project ID:** {credentials_dict.get('project_id', 'N/A')}")
-                st.write(f"**Client Email:** {credentials_dict.get('client_email', 'N/A')}")
         else:
             st.error("❌ Failed to load credentials. Please check your JSON file.")
             return
@@ -373,15 +370,6 @@ def sellerboard_page():
         with col2:
             total_size = sum(f.size for f in uploaded_files) / (1024 * 1024)  # Convert to MB
             st.metric("Total Size", f"{total_size:.2f} MB")
-        
-        # Compact file list
-        with st.expander("📁 Uploaded Files", expanded=False):
-            for idx, file in enumerate(uploaded_files, 1):
-                col1, col2 = st.columns([3, 1])
-                with col1:
-                    st.markdown(f"**{idx}.** {file.name}")
-                with col2:
-                    st.caption(f"{file.size / 1024:.1f} KB")
         
         st.markdown("---")
         
