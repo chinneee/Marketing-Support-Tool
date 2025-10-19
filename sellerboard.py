@@ -592,19 +592,6 @@ def sellerboard_page():
                             with st.expander("🔍 Error Details"):
                                 st.code(traceback.format_exc())
             
-            # Additional actions
-            st.markdown("---")
-            col1, col2 = st.columns([3, 1])
-            with col1:
-                st.caption("💡 **Tip:** Download a local copy before uploading to Google Sheets as backup")
-            with col2:
-                if st.button("🔄 Process New Files", use_container_width=True):
-                    # Clear session state to allow new upload
-                    for key in ['result_df', 'processor', 'processed_files', 'last_processed_files']:
-                        if key in st.session_state:
-                            del st.session_state[key]
-                    st.rerun()
-    
     else:
         # Empty state with helpful instructions
         st.info("👆 **Upload Excel files to get started**")
