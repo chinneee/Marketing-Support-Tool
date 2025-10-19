@@ -4,72 +4,6 @@ from modules.ppc_xnurta import ppc_xnurta_page
 from modules.dsp_xnurta import dsp_xnurta_page
 from datetime import datetime
 
-# Initialize session state for tracking metrics
-def initialize_metrics():
-    if 'total_uploads' not in st.session_state:
-        st.session_state.total_uploads = 0
-    if 'successful_uploads' not in st.session_state:
-        st.session_state.successful_uploads = 0
-    if 'failed_uploads' not in st.session_state:
-        st.session_state.failed_uploads = 0
-    if 'today_uploads' not in st.session_state:
-        st.session_state.today_uploads = 0
-    if 'last_upload_date' not in st.session_state:
-        st.session_state.last_upload_date = datetime.now().date()
-    if 'active_markets' not in st.session_state:
-        st.session_state.active_markets = set()
-    if 'last_updated' not in st.session_state:
-        st.session_state.last_updated = datetime.now()
-
-# Function to update metrics after upload
-def update_metrics(success: bool, market: str):
-    """
-    Call this function after each upload attempt
-    success: True if upload succeeded, False otherwise
-    market: Market code (e.g., 'US', 'CA', 'UK')
-    """
-    # Reset today's count if it's a new day
-    current_date = datetime.now().date()
-    if st.session_state.last_upload_date != current_date:
-        st.session_state.today_uploads = 0
-        st.session_state.last_upload_date = current_date
-    
-    st.session_state.total_uploads += 1
-    st.session_state.today_uploads += 1
-    
-    if success:
-        st.session_state.successful_uploads += 1
-    else:
-        st.session_state.failed_uploads += 1
-    
-    st.session_state.active_markets.add(market)
-    st.session_state.last_updated = datetime.now()
-
-# Calculate success rate
-def get_success_rate():
-    if st.session_state.total_uploads == 0:
-        return 100.0
-    return round((st.session_state.successful_uploads / st.session_state.total_uploads) * 100, 1)
-
-# Calculate delta for success rate
-def get_success_rate_delta():
-    if st.session_state.total_uploads <= 1:
-        return 0
-    
-    if st.session_state.successful_uploads == 0:
-        prev_success_rate = 0
-    else:
-        prev_total = st.session_state.total_uploads - 1
-        prev_success = st.session_state.successful_uploads
-        # If last upload was successful, subtract 1
-        if st.session_state.total_uploads > 0:
-            prev_success_rate = round((prev_success / prev_total) * 100, 1) if prev_total > 0 else 100
-        else:
-            prev_success_rate = 100
-    
-    current_rate = get_success_rate()
-    return round(current_rate - prev_success_rate, 1)
-
 def main():
     st.set_page_config(
         page_title="Marketing Data Upload Tool",
@@ -77,9 +11,6 @@ def main():
         layout="wide",
         initial_sidebar_state="expanded"
     )
-    
-    # Initialize metrics
-    initialize_metrics()
     
     # Enhanced Custom CSS
     st.markdown("""
@@ -165,42 +96,16 @@ def main():
     # Header with gradient title
     st.markdown('<h1 class="gradient-title">🚀 Marketing Data Upload Tool</h1>', unsafe_allow_html=True)
     
-    # Quick stats row with real-time data
+    # Quick stats row (placeholder - can be populated with actual data)
     col1, col2, col3, col4 = st.columns(4)
-    
     with col1:
-        st.metric(
-            label="📊 Total Uploads", 
-            value=f"{st.session_state.total_uploads}",
-            delta=f"+{st.session_state.today_uploads} Today" if st.session_state.today_uploads > 0 else "No uploads today"
-        )
-    
+        st.metric(label="📊 Total Uploads", value="0", delta="Today")
     with col2:
-        success_rate = get_success_rate()
-        delta = get_success_rate_delta()
-        st.metric(
-            label="✅ Success Rate", 
-            value=f"{success_rate}%",
-            delta=f"{delta:+.1f}%" if delta != 0 else "No change",
-            delta_color="normal" if delta >= 0 else "inverse"
-        )
-    
+        st.metric(label="✅ Success Rate", value="100%", delta="0%")
     with col3:
-        markets_list = sorted(list(st.session_state.active_markets))
-        markets_str = ", ".join(markets_list) if markets_list else "None"
-        st.metric(
-            label="⚡ Active Markets", 
-            value=f"{len(st.session_state.active_markets)}",
-            delta=markets_str if markets_list else "No markets yet"
-        )
-    
+        st.metric(label="⚡ Active Markets", value="3", delta="US, CA, UK")
     with col4:
-        time_str = st.session_state.last_updated.strftime("%H:%M:%S")
-        st.metric(
-            label="🕐 Last Updated", 
-            value=time_str,
-            delta=""
-        )
+        st.metric(label="🕐 Last Updated", value=datetime.now().strftime("%H:%M"))
     
     st.markdown("---")
     
@@ -229,26 +134,6 @@ def main():
     # Show selected module status
     st.sidebar.markdown(f"**Status:** {module_status[page]}")
     st.sidebar.markdown("---")
-    
-    # Debug info in sidebar (optional - can remove in production)
-    with st.sidebar.expander("📊 Session Stats", expanded=False):
-        st.markdown(f"""
-        **Current Session:**
-        - Total Uploads: {st.session_state.total_uploads}
-        - Successful: {st.session_state.successful_uploads}
-        - Failed: {st.session_state.failed_uploads}
-        - Today: {st.session_state.today_uploads}
-        - Markets: {', '.join(sorted(st.session_state.active_markets)) if st.session_state.active_markets else 'None'}
-        """)
-        
-        if st.button("🔄 Reset All Stats", key="reset_stats"):
-            st.session_state.total_uploads = 0
-            st.session_state.successful_uploads = 0
-            st.session_state.failed_uploads = 0
-            st.session_state.today_uploads = 0
-            st.session_state.active_markets = set()
-            st.session_state.last_updated = datetime.now()
-            st.rerun()
     
     # Enhanced Help Section with expandable details
     with st.sidebar.expander("📖 Quick Start Guide", expanded=False):
@@ -420,7 +305,7 @@ def main():
     with col3:
         st.markdown("**Report Issues**")
         st.markdown("[Bug Tracker](#)")
-    
+
     # --- Docs section ---
     if st.session_state.get("show_docs", False):
         st.markdown("---")
@@ -428,6 +313,7 @@ def main():
         st.markdown("""
         **Hướng dẫn sử dụng:**
         Hí, chào cả nhà. Em chưa viết cí này hẹ hẹ. Nhưng mà em sẽ viết sớm thôi ạ.
+
         Cảm ơn mọi người đã sử dụng công cụ của em! ❤️
         """)
 
