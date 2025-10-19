@@ -128,6 +128,7 @@ class DSPProcessor:
         except Exception:
             # fallback: just add Date as a new column at the end
             df["Date"] = date_val
+        
         required_columns = [
             "ASIN", "Creative", "Date", "Total cost", "Total product sales", "eCPM",
             "Total CPDPV", "Total ROAS", "Total percent of purchases new-to-brand",

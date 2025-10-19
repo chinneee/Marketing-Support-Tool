@@ -1,8 +1,9 @@
 [theme]
-primaryColor = "#FF4B4B"
-backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F0F2F6"
-textColor = "#262730"
+base = "dark"
+primaryColor = "#A855F7"  # Tím gradient
+backgroundColor = "#18181B"
+secondaryBackgroundColor = "#27272A"
+textColor = "#E4E4E7"
 font = "sans serif"
 
 [server]
