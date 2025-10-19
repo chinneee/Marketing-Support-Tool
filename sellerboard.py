@@ -646,16 +646,3 @@ def sellerboard_page():
             4. Choose download or upload to Sheets
             """)
         
-        # Sample filename examples
-        with st.expander("📝 Filename Examples", expanded=False):
-            st.code("""
-✅ Valid filenames:
-- report_15_10_2025.xlsx
-- data_01_12_2025.xlsx
-- sales_31_01_2025.xlsx
-
-❌ Invalid filenames:
-- report.xlsx (no date)
-- data_2025_10_15.xlsx (wrong format)
-- sales-15-10-2025.xlsx (wrong separator)
-            """)
