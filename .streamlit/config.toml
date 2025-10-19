@@ -1,9 +1,9 @@
 [theme]
-base = "dark"
-primaryColor = "#A855F7"  # Tím gradient
-backgroundColor = "#18181B"
-secondaryBackgroundColor = "#27272A"
-textColor = "#E4E4E7"
+base = "light"
+primaryColor = "#1E88E5"  # Xanh dương chuyên nghiệp
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F5F7FA"
+textColor = "#2C3E50"
 font = "sans serif"
 
 [server]
