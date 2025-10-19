@@ -204,10 +204,10 @@ def main():
     st.sidebar.success("""
     🔒 **Security & Privacy**
     
-    ✓ Credentials stored in memory only
-    ✓ No data saved to disk
-    ✓ Secure HTTPS connection
-    ✓ Session-based authentication
+    - ✓ Credentials stored in memory only
+    - ✓ No data saved to disk
+    - ✓ Secure HTTPS connection
+    - ✓ Session-based authentication
     
     Your data is safe with us!
     """)
