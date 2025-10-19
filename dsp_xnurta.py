@@ -267,13 +267,9 @@ def json_load_stream(uploaded_file):
 #  Streamlit page: dsp_xnurta_page
 # ---------------------------
 def dsp_xnurta_page():
-    st.header("📺 DSP XNurta Data Upload")
-    st.markdown("*Upload DSP files, process automatically, and export to Google Sheets*")
-    st.markdown("---")
 
     # Step 1: Credentials
     st.subheader("🔐 Step 1: Upload Google Credentials")
-    st.caption("Upload your service account JSON file")
     
     credentials_file = st.file_uploader(
         "Upload credential.json file",
@@ -287,15 +283,6 @@ def dsp_xnurta_page():
         try:
             credentials_dict = json_load_stream(credentials_file)
             st.success("✅ Credentials loaded successfully")
-            
-            with st.expander("📋 Credential Details", expanded=False):
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.markdown(f"**Project ID:**")
-                    st.code(credentials_dict.get('project_id', 'N/A'))
-                with col2:
-                    st.markdown(f"**Client Email:**")
-                    st.code(credentials_dict.get('client_email', 'N/A'))
         except Exception as e:
             st.error(f"❌ Invalid credentials file: {e}")
             st.text(traceback.format_exc())
@@ -315,7 +302,6 @@ def dsp_xnurta_page():
 
     # Step 2: Sheet ID
     st.subheader("📝 Step 2: Enter Google Sheet ID")
-    st.caption("Find this in your Google Sheet URL")
     
     sheet_id = st.text_input(
         "Google Sheet ID",
@@ -379,7 +365,6 @@ def dsp_xnurta_page():
 
     # Step 4: Upload, Process & Export (Combined)
     st.subheader("📂 Step 4: Upload, Process & Export Data")
-    st.markdown("*Files will be automatically processed upon upload*")
     
     uploaded_files = st.file_uploader(
         "Upload DSP Excel files (YYYYMMDD format in filename)",
@@ -398,16 +383,6 @@ def dsp_xnurta_page():
             total_size = sum(f.size for f in uploaded_files) / (1024 * 1024)
             st.metric("Total Size", f"{total_size:.2f} MB")
 
-        # Compact file list
-        with st.expander("📁 Uploaded Files", expanded=False):
-            for idx, file in enumerate(uploaded_files, 1):
-                col1, col2 = st.columns([3, 1])
-                with col1:
-                    st.markdown(f"**{idx}.** {file.name}")
-                with col2:
-                    st.caption(f"{file.size / 1024:.1f} KB")
-
-        st.markdown("---")
 
         # Auto-process logic
         current_file_names = [f.name for f in uploaded_files]
@@ -480,11 +455,6 @@ def dsp_xnurta_page():
         if 'dsp_result_df' in st.session_state and not st.session_state.dsp_result_df.empty:
             result_df = st.session_state.dsp_result_df
             processed_files = st.session_state.dsp_processed_files
-
-            st.markdown("---")
-
-            # Preview section
-            st.markdown("### 👁️ Data Preview")
 
             col1, col2, col3 = st.columns([2, 1, 1])
             with col1:
@@ -640,17 +610,4 @@ def dsp_xnurta_page():
             2. Data is automatically processed
             3. Preview & export options appear
             4. Choose download or upload to Sheets
-            """)
-
-        with st.expander("📝 Filename Examples", expanded=False):
-            st.code("""
-✅ Valid filenames:
-- dsp_20251015.xlsx
-- report_20251231.xlsx
-- monthly_20250101.xlsx
-
-❌ Invalid filenames:
-- dsp_report.xlsx (no date)
-- data_2025_10_15.xlsx (wrong format)
-- sales-20251015.xlsx (works but not recommended)
             """)
