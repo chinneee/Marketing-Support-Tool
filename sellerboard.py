@@ -370,9 +370,7 @@ def sellerboard_page():
         with col2:
             total_size = sum(f.size for f in uploaded_files) / (1024 * 1024)  # Convert to MB
             st.metric("Total Size", f"{total_size:.2f} MB")
-        
-        st.markdown("---")
-        
+
         # Auto-process files
         current_file_names = [f.name for f in uploaded_files]
         
@@ -455,11 +453,6 @@ def sellerboard_page():
         if 'result_df' in st.session_state and not st.session_state.result_df.empty:
             result_df = st.session_state.result_df
             processed_files = st.session_state.processed_files
-            
-            st.markdown("---")
-            
-            # Data preview section
-            st.markdown("### 👁️ Data Preview")
             
             # Preview controls in one row
             col1, col2, col3 = st.columns([2, 1, 1])
