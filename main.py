@@ -42,7 +42,7 @@ def main():
         
         /* Sidebar improvements */
         [data-testid="stSidebar"] {
-            background-color: #e3e6e8;
+            background-color: #F5F5F0;
         }
         
         /* Info/Success/Warning boxes */
@@ -95,7 +95,6 @@ def main():
     
     # Header with gradient title
     st.markdown('<h1 class="gradient-title">🚀 Marketing Data Upload Tool</h1>', unsafe_allow_html=True)
-    st.markdown("### 📈 Upload and manage your marketing data efficiently")
     
     # Quick stats row (placeholder - can be populated with actual data)
     col1, col2, col3, col4 = st.columns(4)
