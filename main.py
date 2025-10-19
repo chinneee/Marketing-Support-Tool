@@ -295,7 +295,7 @@ def main():
     
     with col1:
         st.markdown("**Need Help?**")
-        st.markdown("📧 support@example.com")
+        st.markdown("📧 trinh.nguyen@aprime.so")
     
     with col2:
         st.markdown("**Documentation**")
