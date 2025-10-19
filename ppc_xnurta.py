@@ -388,7 +388,6 @@ def load_credentials_from_file(uploaded_file):
 
 def ppc_xnurta_page():
     """PPC XNurta data upload page"""
-    st.header("💰 PPC XNurta Data Upload")
     
     # Step 1: Upload credentials
     st.subheader("🔐 Step 1: Upload Google Credentials")

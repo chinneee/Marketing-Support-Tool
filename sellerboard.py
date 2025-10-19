@@ -283,7 +283,6 @@ def load_credentials_from_file(uploaded_file):
 
 def sellerboard_page():
     """Sellerboard data upload page"""
-    st.header("📊 Sellerboard Data Upload")
     
     # Step 1: Upload credentials
     st.subheader("🔐 Step 1: Upload Google Credentials")

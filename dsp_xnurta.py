@@ -258,10 +258,6 @@ def export_to_excel_bytes(df: pd.DataFrame, sheet_name: str = "Data"):
 # ---------------------------
 
 def dsp_xnurta_page():
-    st.header("📺 DSP XNurta Data Upload")
-    st.markdown("Upload DSP files (monthly), process and append to Google Sheets. Flow: Credentials → Sheet ID → Market → Upload Files → Process → Export/Push")
-
-    # Step 1: credentials upload
     st.subheader("🔐 Step 1: Upload Google Credentials (service account JSON)")
     credentials_file = st.file_uploader(
         "Upload your credential.json file",
