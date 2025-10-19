@@ -313,8 +313,6 @@ def dsp_xnurta_page():
     if not sheet_id:
         st.warning("⚠️ Please enter Google Sheet ID to continue")
         return
-
-    st.success(f"✅ Sheet ID configured: `{sheet_id[:20]}...`")
     st.markdown("---")
 
     # Step 3: Select Market
@@ -467,13 +465,6 @@ def dsp_xnurta_page():
                 )
             with col2:
                 show_all = st.checkbox("All columns", value=False)
-            with col3:
-                show_summary = st.checkbox("Show summary", value=False)
-
-            if show_summary:
-                with st.expander("📋 Processing Details", expanded=True):
-                    for pf in processed_files:
-                        st.markdown(f"✓ **{pf['file_name']}** → {pf['rows_count']} rows")
 
             display_df = result_df if show_all else (result_df.iloc[:, :8] if len(result_df.columns) > 8 else result_df)
             st.dataframe(
@@ -578,17 +569,6 @@ def dsp_xnurta_page():
                             with st.expander("🔍 Error Details"):
                                 st.code(traceback.format_exc())
 
-            # Additional actions
-            st.markdown("---")
-            col1, col2 = st.columns([3, 1])
-            with col1:
-                st.caption("💡 **Tip:** Download a local copy before uploading to Google Sheets as backup")
-            with col2:
-                if st.button("🔄 Process New Files", use_container_width=True):
-                    for key in ['dsp_result_df', 'dsp_processor', 'dsp_processed_files', 'dsp_last_processed_files']:
-                        if key in st.session_state:
-                            del st.session_state[key]
-                    st.rerun()
 
     else:
         st.info("👆 **Upload Excel files to get started**")
