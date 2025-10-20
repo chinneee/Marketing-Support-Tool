@@ -28,29 +28,28 @@ class LaunchingProcessor:
         self.worksheet = None
         
     def _init_google_sheets(self):
-        """Initialize Google Sheets connection"""
+        """Initialize Google Sheets connection (robust version)"""
         try:
-            if self.client is None:
-                scopes = [
-                    "https://www.googleapis.com/auth/spreadsheets",
-                    "https://www.googleapis.com/auth/drive"
-                ]
-                creds = Credentials.from_service_account_info(
-                    self.credentials_dict, scopes=scopes
+            scopes = [
+                "https://www.googleapis.com/auth/spreadsheets",
+                "https://www.googleapis.com/auth/drive"
+            ]
+            creds = Credentials.from_service_account_info(self.credentials_dict, scopes=scopes)
+            self.client = gspread.authorize(creds)
+            self.spreadsheet = self.client.open_by_key(self.sheet_id)
+
+            # --- ensure correct worksheet exists ---
+            sheet_titles = [ws.title for ws in self.spreadsheet.worksheets()]
+            if self.worksheet_name in sheet_titles:
+                self.worksheet = self.spreadsheet.worksheet(self.worksheet_name)
+            else:
+                # create with numeric rows/cols (not string)
+                self.worksheet = self.spreadsheet.add_worksheet(
+                    title=self.worksheet_name,
+                    rows=1000,
+                    cols=30
                 )
-                self.client = gspread.authorize(creds)
-                self.spreadsheet = self.client.open_by_key(self.sheet_id)
-                
-                # Try to get worksheet, if not exists, create it
-                try:
-                    self.worksheet = self.spreadsheet.worksheet(self.worksheet_name)
-                except gspread.exceptions.WorksheetNotFound:
-                    self.worksheet = self.spreadsheet.add_worksheet(
-                        title=self.worksheet_name,
-                        rows="1000",
-                        cols="30"
-                    )
-                    
+
         except Exception as e:
             raise Exception(f"Error initializing Google Sheets: {e}")
     
@@ -129,6 +128,12 @@ class LaunchingProcessor:
             return pd.DataFrame()
     
     def clear_and_upload_to_sheets(self, df):
+        # ✅ Bảo đảm worksheet tồn tại và đúng sheet name
+        if not self.worksheet:
+            raise Exception("Worksheet not initialized. Please check sheet name.")
+        if self.worksheet.title != self.worksheet_name:
+            self.worksheet = self.spreadsheet.worksheet(self.worksheet_name)
+
         """Clear columns A to P and upload new DataFrame to Google Sheets"""
         if df.empty:
             return False
