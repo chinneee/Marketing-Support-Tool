@@ -14,7 +14,7 @@ class LaunchingProcessor:
     def __init__(self, credentials_dict, sheet_id):
         self.credentials_dict = credentials_dict
         self.sheet_id = sheet_id
-        self.worksheet_name = "Dim_Launching"
+        self.worksheet_name = "Launching"
         
         # Định nghĩa thứ tự cột chuẩn từ A đến P
         self.standard_columns = [
@@ -28,28 +28,29 @@ class LaunchingProcessor:
         self.worksheet = None
         
     def _init_google_sheets(self):
-        """Initialize Google Sheets connection (robust version)"""
+        """Initialize Google Sheets connection"""
         try:
-            scopes = [
-                "https://www.googleapis.com/auth/spreadsheets",
-                "https://www.googleapis.com/auth/drive"
-            ]
-            creds = Credentials.from_service_account_info(self.credentials_dict, scopes=scopes)
-            self.client = gspread.authorize(creds)
-            self.spreadsheet = self.client.open_by_key(self.sheet_id)
-
-            # --- ensure correct worksheet exists ---
-            sheet_titles = [ws.title for ws in self.spreadsheet.worksheets()]
-            if self.worksheet_name in sheet_titles:
-                self.worksheet = self.spreadsheet.worksheet(self.worksheet_name)
-            else:
-                # create with numeric rows/cols (not string)
-                self.worksheet = self.spreadsheet.add_worksheet(
-                    title=self.worksheet_name,
-                    rows=1000,
-                    cols=30
+            if self.client is None:
+                scopes = [
+                    "https://www.googleapis.com/auth/spreadsheets",
+                    "https://www.googleapis.com/auth/drive"
+                ]
+                creds = Credentials.from_service_account_info(
+                    self.credentials_dict, scopes=scopes
                 )
-
+                self.client = gspread.authorize(creds)
+                self.spreadsheet = self.client.open_by_key(self.sheet_id)
+                
+                # Try to get worksheet, if not exists, create it
+                try:
+                    self.worksheet = self.spreadsheet.worksheet(self.worksheet_name)
+                except gspread.exceptions.WorksheetNotFound:
+                    self.worksheet = self.spreadsheet.add_worksheet(
+                        title=self.worksheet_name,
+                        rows="1000",
+                        cols="30"
+                    )
+                    
         except Exception as e:
             raise Exception(f"Error initializing Google Sheets: {e}")
     
@@ -128,12 +129,6 @@ class LaunchingProcessor:
             return pd.DataFrame()
     
     def clear_and_upload_to_sheets(self, df):
-        # ✅ Bảo đảm worksheet tồn tại và đúng sheet name
-        if not self.worksheet:
-            raise Exception("Worksheet not initialized. Please check sheet name.")
-        if self.worksheet.title != self.worksheet_name:
-            self.worksheet = self.spreadsheet.worksheet(self.worksheet_name)
-
         """Clear columns A to P and upload new DataFrame to Google Sheets"""
         if df.empty:
             return False
@@ -206,7 +201,7 @@ def load_credentials_from_file(uploaded_file):
         return None
 
 
-def launching_dimension_page():
+def launching_page():
     """Launching data upload page"""
     
     st.title("🚀 Launching Manager")
@@ -338,6 +333,23 @@ def launching_dimension_page():
             if not show_all:
                 st.caption(f"Showing 8 of 16 columns. Enable 'All columns' to see more.")
             
+            # Show column mapping info
+            with st.expander("📋 Column Structure (A to P)", expanded=False):
+                st.markdown("""
+                **Standard Column Order:**
+                
+                | Col | Name | Col | Name |
+                |-----|------|-----|------|
+                | A | Launching | I | Link |
+                | B | Ads | J | Quy Trình |
+                | C | Idea | K | Đánh giá |
+                | D | Qty | L | Parent items |
+                | E | Start | M | Item |
+                | F | End | N | ASIN |
+                | G | Progress | O | ASIN (Item) |
+                | H | Link Idea | P | ID |
+                """)
+            
             st.markdown("---")
             
             # Export Options
@@ -351,7 +363,7 @@ def launching_dimension_page():
                 # Excel download
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                    df.to_excel(writer, index=False, sheet_name="Dim_Launching")
+                    df.to_excel(writer, index=False, sheet_name='Launching')
                 output.seek(0)
                 
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -379,7 +391,7 @@ def launching_dimension_page():
             with col2:
                 st.markdown("#### ☁️ Upload to Google Sheets")
                 
-                st.info(f"**Target Sheet:** `Dim_Launching`\n\n**Rows:** {len(df):,}\n\n**Columns:** A to P (16 columns)\n\n⚠️ **Note:** Only columns A-P will be cleared and updated")
+                st.info(f"**Target Sheet:** `Launching`\n\n**Rows:** {len(df):,}\n\n**Columns:** A to P (16 columns)\n\n⚠️ **Note:** Only columns A-P will be cleared and updated")
                 
                 if st.button("🚀 Push to Google Sheets", 
                             type="primary", 
@@ -392,12 +404,12 @@ def launching_dimension_page():
                             success = processor.clear_and_upload_to_sheets(df)
                         
                         if success:
-                            st.success(f"✅ Successfully uploaded {len(df):,} rows to `Dim_Launching` (columns A-P)!")
+                            st.success(f"✅ Successfully uploaded {len(df):,} rows to `Launching` (columns A-P)!")
                             
                             with st.expander("📊 Upload Summary", expanded=True):
                                 st.markdown(f"""
                                 **Upload Details:**
-                                - **Sheet:** `Dim_Launching`
+                                - **Sheet:** `Launching`
                                 - **Range:** A1:P{len(df) + 1}
                                 - **Rows uploaded:** {len(df):,}
                                 - **Columns:** 16 (A to P)
@@ -441,4 +453,4 @@ def launching_dimension_page():
 
 # Main execution
 if __name__ == "__main__":
-    launching_dimension_page()
+    launching_page()
