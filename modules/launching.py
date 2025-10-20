@@ -346,7 +346,7 @@ def launching_dimension_page():
                 # Excel download
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                    df.to_excel(writer, index=False, sheet_name='Dim_Launching')
+                    df.to_excel(writer, index=False, sheet_name="Dim_Launching")
                 output.seek(0)
                 
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -387,7 +387,7 @@ def launching_dimension_page():
                             success = processor.clear_and_upload_to_sheets(df)
                         
                         if success:
-                            st.success(f"✅ Successfully uploaded {len(df):,} rows to `Launching` (columns A-P)!")
+                            st.success(f"✅ Successfully uploaded {len(df):,} rows to `Dim_Launching` (columns A-P)!")
                             
                             with st.expander("📊 Upload Summary", expanded=True):
                                 st.markdown(f"""
