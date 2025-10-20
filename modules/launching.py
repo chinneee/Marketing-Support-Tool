@@ -346,7 +346,7 @@ def launching_dimension_page():
                 # Excel download
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                    df.to_excel(writer, index=False, sheet_name='Launching')
+                    df.to_excel(writer, index=False, sheet_name='Dim_Launching')
                 output.seek(0)
                 
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
