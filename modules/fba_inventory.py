@@ -190,7 +190,7 @@ def fba_inventory_page():
     
     sheet_id = st.text_input(
         "Google Sheet ID",
-        value="",
+        value="1GpPsWt_fWCfHnEdFQJIsNBebhqFnIiExsHA8SjNUhFk",
         help="Find this in your Google Sheet URL: docs.google.com/spreadsheets/d/{SHEET_ID}/edit"
     )
     
