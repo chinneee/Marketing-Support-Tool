@@ -471,7 +471,7 @@ def sellerboard_page():
             display_df = result_df if show_all else (result_df.iloc[:, :8] if len(result_df.columns) > 8 else result_df)
             st.dataframe(
                 display_df.head(preview_rows),
-                width=True,
+                width="stretch",
                 height=300
             )
             
@@ -507,7 +507,7 @@ def sellerboard_page():
                     data=excel_data,
                     file_name=filename,
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    width=True,
+                    width="stretch",
                     help="Download as Excel file (.xlsx)"
                 )
                 
@@ -519,7 +519,7 @@ def sellerboard_page():
                     data=csv,
                     file_name=csv_filename,
                     mime="text/csv",
-                    width=True,
+                    width="stretch",
                     help="Download as CSV file (lighter format)"
                 )
             
@@ -534,7 +534,7 @@ def sellerboard_page():
                 if st.button(
                     "🚀 Push to Google Sheets",
                     type="primary",
-                    width=True,
+                    width="stretch",
                     help="Upload data to your Google Sheets"
                 ):
                     upload_placeholder = st.empty()
