@@ -4,6 +4,7 @@ from modules.ppc_xnurta import ppc_xnurta_page
 from modules.dsp_xnurta import dsp_xnurta_page
 from modules.fba_inventory import fba_inventory_page
 from modules.asin import asin_dimension_page
+from modules.launching import launching_dimension_page
 from datetime import datetime
 import pytz
 import os
@@ -277,21 +278,9 @@ def main():
             
     elif page == "🚀 Launching - Dimension":
         st.markdown("## 🚀 Product Launch Analytics")
-        st.info("🚧 **Module Under Development**")
-        st.markdown("""
-        This module is currently being developed and will include:
-        
-        - 🚀 Launch performance tracking
-        - 📊 Campaign effectiveness metrics
-        - 🎯 Target audience analysis
-        - 📈 Growth trajectory monitoring
-        - 💡 Optimization recommendations
-        
-        **Expected Release:** Q1 2026
-        """)
-        
-        if st.button("🔔 Notify me when available", key="launch_notify"):
-            st.success("✅ You'll be notified when this module is ready!")
+        st.markdown("*Manage your Product reports and analytics*")
+        st.markdown("")
+        launching_dimension_page()
     
     # Footer section
     st.markdown("---")
