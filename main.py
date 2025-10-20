@@ -4,6 +4,9 @@ from modules.ppc_xnurta import ppc_xnurta_page
 from modules.dsp_xnurta import dsp_xnurta_page
 from datetime import datetime
 import pytz
+import os
+import time
+import json
 
 def main():
     st.set_page_config(
@@ -99,8 +102,33 @@ def main():
     
     # Quick stats row (placeholder - can be populated with actual data)
     col1, col2, col3, col4 = st.columns(4)
+    SESSION_FILE = "/tmp/active_sessions.json"
+
+    def load_sessions():
+        if os.path.exists(SESSION_FILE):
+            with open(SESSION_FILE, "r") as f:
+                return json.load(f)
+        return {}
+
+    def save_sessions(sessions):
+        with open(SESSION_FILE, "w") as f:
+            json.dump(sessions, f)
+
+    def register_session():
+        sessions = load_sessions()
+        session_id = st.session_state.get("_session_id", str(time.time()))
+        st.session_state["_session_id"] = session_id
+        sessions[session_id] = time.time()
+        # Xóa session cũ hơn 10 phút
+        now = time.time()
+        sessions = {sid: t for sid, t in sessions.items() if now - t < 600}
+        save_sessions(sessions)
+        return len(sessions)
+
+    active_users = register_session()
+
     with col1:
-        st.metric(label="📊 Total Uploads", value="0", delta="Today")
+        st.metric(label="👥 Active Users", value=active_users)
     with col2:
         st.metric(label="✅ Success Rate", value="100%", delta="0%")
     with col3:
@@ -310,6 +338,7 @@ def main():
         st.markdown("## 📖 Documentation")
         st.markdown("""
         **Hướng dẫn sử dụng:**
+                    
         Hí, chào cả nhà. Em chưa viết cí này hẹ hẹ. Nhưng mà em sẽ viết sớm thôi ạ.
 
         Cảm ơn mọi người đã sử dụng công cụ của em! ❤️
