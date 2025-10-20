@@ -49,15 +49,20 @@ class FBAInventoryProcessor:
             raise Exception(f"Error initializing Google Sheets: {e}")
     
     def process_single_file(self, file_content, filename):
-        """Process a single file and return DataFrame"""
+        """Process a single uploaded file (.xlsx, .csv, .txt) and return a DataFrame"""
         try:
-            # Try Excel first
-            if filename.endswith('.txt'):
-                df = pd.read_csv(io.BytesIO(file_content), delimiter='\t')
+            # Đọc file theo định dạng
+            if filename.endswith(('.xlsx', '.xls')):
+                # Excel files
+                df = pd.read_excel(io.BytesIO(file_content))
             elif filename.endswith('.csv'):
-                df = pd.read_csv(io.BytesIO(file_content))
+                # CSV files
+                df = pd.read_csv(io.BytesIO(file_content), encoding='utf-8')
+            elif filename.endswith('.txt'):
+                # TXT files (tab-delimited)
+                df = pd.read_csv(io.BytesIO(file_content), delimiter='\t', encoding='utf-8')
             else:
-                raise ValueError(f"Unsupported file format: {filename}")
+                raise ValueError(f"❌ Unsupported file format: {filename}")
             
             df = df.dropna(axis=1, how="all").copy()
             
