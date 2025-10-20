@@ -3,6 +3,7 @@ from modules.sellerboard import sellerboard_page
 from modules.ppc_xnurta import ppc_xnurta_page
 from modules.dsp_xnurta import dsp_xnurta_page
 from modules.fba_inventory import fba_inventory_page
+from modules.asin import asin_dimension_page
 from datetime import datetime
 import pytz
 import os
@@ -263,27 +264,16 @@ def main():
         
     elif page == "📦 FBA Inventory":
         st.markdown("## 📦 FBA Inventory Management")
-        st.markdown("*Manage your Sellerboard reports and analytics*")
+        st.markdown("*Manage your FBA Inventory reports and analytics*")
         st.markdown("")
         fba_inventory_page()
             
     elif page == "🔍 ASIN - Dimension":
         st.markdown("## 🔍 ASIN Dimension Analysis")
-        st.info("🚧 **Module Under Development**")
-        st.markdown("""
-        This module is currently being developed and will include:
-        
-        - 🔍 ASIN performance tracking
-        - 📊 Multi-dimensional analysis
-        - 🎯 Product ranking insights
-        - 📈 Sales trend analysis
-        - 🔄 Competitor comparison
-        
-        **Expected Release:** Q1 2026
-        """)
-        
-        if st.button("🔔 Notify me when available", key="asin_notify"):
-            st.success("✅ You'll be notified when this module is ready!")
+        st.markdown("*Manage your Product reports and analytics*")
+        st.markdown("")
+        asin_dimension_page()
+
             
     elif page == "🚀 Launching - Dimension":
         st.markdown("## 🚀 Product Launch Analytics")

@@ -12,12 +12,14 @@ from .sellerboard import sellerboard_page
 from .ppc_xnurta import ppc_xnurta_page
 from .dsp_xnurta import dsp_xnurta_page
 from .fba_inventory import fba_inventory_page
+from .asin import asin_dimension_page
 
 __all__ = [
     'sellerboard_page',
     'ppc_xnurta_page',
     'dsp_xnurta_page'
     'fba_inventory_page',
+    'asin_dimension_page',
 ]
 
 __version__ = '1.0.0'
