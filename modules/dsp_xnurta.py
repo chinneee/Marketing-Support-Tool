@@ -9,6 +9,7 @@ from datetime import datetime
 from google.oauth2.service_account import Credentials
 import gspread
 import json
+import pytz
 
 # ============================================================
 # DSP Processor Class
@@ -458,7 +459,7 @@ def dsp_xnurta_page():
                                 - **Rows uploaded:** {len(result_df):,}
                                 - **Columns:** {len(result_df.columns)}
                                 - **Files processed:** {len(processed_files)}
-                                - **Timestamp:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+                                - **Timestamp:** {datetime.now(pytz.timezone('Asia/Ho_Chi_Minh')).strftime('%Y-%m-%d %H:%M:%S')}
                                 """)
                         else:
                             st.error("❌ Upload failed")
