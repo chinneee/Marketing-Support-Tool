@@ -52,7 +52,7 @@ class FBAInventoryProcessor:
         """Process a single file and return DataFrame"""
         try:
             # Try Excel first
-            if filename.endswith('.xlsx') or filename.endswith('.xls'):
+            if filename.endswith('.csv') or filename.endswith('.txt'):
                 df = pd.read_excel(io.BytesIO(file_content))
             elif filename.endswith('.csv'):
                 df = pd.read_csv(io.BytesIO(file_content))
