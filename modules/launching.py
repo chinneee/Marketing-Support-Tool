@@ -201,7 +201,7 @@ def load_credentials_from_file(uploaded_file):
         return None
 
 
-def launching_page():
+def launching_dimension_page():
     """Launching data upload page"""
     
     st.title("🚀 Launching Manager")
@@ -453,4 +453,4 @@ def launching_page():
 
 # Main execution
 if __name__ == "__main__":
-    launching_page()
+    launching_dimension_page()
