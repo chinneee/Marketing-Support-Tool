@@ -14,7 +14,7 @@ class LaunchingProcessor:
     def __init__(self, credentials_dict, sheet_id):
         self.credentials_dict = credentials_dict
         self.sheet_id = sheet_id
-        self.worksheet_name = "Launching"
+        self.worksheet_name = "Dim_Launching"
         
         # Định nghĩa thứ tự cột chuẩn từ A đến P
         self.standard_columns = [
@@ -333,23 +333,6 @@ def launching_dimension_page():
             if not show_all:
                 st.caption(f"Showing 8 of 16 columns. Enable 'All columns' to see more.")
             
-            # Show column mapping info
-            with st.expander("📋 Column Structure (A to P)", expanded=False):
-                st.markdown("""
-                **Standard Column Order:**
-                
-                | Col | Name | Col | Name |
-                |-----|------|-----|------|
-                | A | Launching | I | Link |
-                | B | Ads | J | Quy Trình |
-                | C | Idea | K | Đánh giá |
-                | D | Qty | L | Parent items |
-                | E | Start | M | Item |
-                | F | End | N | ASIN |
-                | G | Progress | O | ASIN (Item) |
-                | H | Link Idea | P | ID |
-                """)
-            
             st.markdown("---")
             
             # Export Options
@@ -409,7 +392,7 @@ def launching_dimension_page():
                             with st.expander("📊 Upload Summary", expanded=True):
                                 st.markdown(f"""
                                 **Upload Details:**
-                                - **Sheet:** `Launching`
+                                - **Sheet:** `Dim_Launching`
                                 - **Range:** A1:P{len(df) + 1}
                                 - **Rows uploaded:** {len(df):,}
                                 - **Columns:** 16 (A to P)
