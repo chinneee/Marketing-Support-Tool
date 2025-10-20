@@ -2,6 +2,7 @@ import streamlit as st
 import os
 import sys
 import re
+import asyncio
 import pandas as pd
 from datetime import datetime
 import gspread
@@ -418,8 +419,6 @@ def sellerboard_page():
                 status_placeholder.empty()
                 
                 if not result_df.empty:
-                    # Success message with metrics
-                    st.success(f"✅ Successfully processed {len(processed_files)} file(s)")
                     
                     # Key metrics in cards
                     col1, col2, col3, col4 = st.columns(4)
@@ -522,62 +521,57 @@ def sellerboard_page():
                     width="stretch",
                     help="Download as CSV file (lighter format)"
                 )
-            
+
+                    
             with col2:
                 st.markdown("#### ☁️ Upload to Cloud")
                 st.caption("Push data directly to Google Sheets")
-                
-                # Info box
+
                 st.info(f"**Target:** {selected_market} market sheet\n\n**Rows:** {len(result_df):,}")
-                
-                # Upload button - prominent and clear
-                if st.button(
-                    "🚀 Push to Google Sheets",
-                    type="primary",
-                    width="stretch",
-                    help="Upload data to your Google Sheets"
-                ):
+
+                if st.button("🚀 Push to Google Sheets", type="primary", help="Upload data to your Google Sheets"):
                     upload_placeholder = st.empty()
-                    
+
                     with upload_placeholder.container():
                         st.markdown("---")
                         progress_bar = st.progress(0)
                         status_text = st.empty()
-                        
+
                         try:
                             status_text.text("Connecting to Google Sheets...")
                             progress_bar.progress(25)
-                            
+
                             status_text.text("Uploading data...")
                             progress_bar.progress(50)
-                            
+
                             success = st.session_state.processor.append_to_sheets(result_df)
-                            
+
                             status_text.text("Verifying upload...")
                             progress_bar.progress(90)
-                            
-                            if success:
+
+                            if success is True:
                                 progress_bar.progress(100)
                                 status_text.text("✅ Upload complete!")
-                                time.sleep(0.5)
+
+                                # await asyncio.sleep(0.5)  # hoặc bỏ hẳn
                                 upload_placeholder.empty()
-                                
+
                                 st.success(f"✅ Successfully uploaded {len(result_df):,} rows to Google Sheets!")
                                 st.balloons()
-                                
-                                # Show success details
+
+                                num_files = len(processed_files) if 'processed_files' in locals() else 0
                                 with st.expander("📊 Upload Summary", expanded=True):
                                     st.markdown(f"""
                                     - **Market:** {selected_market}
                                     - **Rows uploaded:** {len(result_df):,}
                                     - **Columns:** {len(result_df.columns)}
-                                    - **Files processed:** {len(processed_files)}
+                                    - **Files processed:** {num_files}
                                     - **Timestamp:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                                     """)
                             else:
                                 upload_placeholder.empty()
                                 st.error("❌ Upload failed - Please check the error messages above")
-                                
+
                         except Exception as e:
                             upload_placeholder.empty()
                             st.error(f"❌ Upload failed: {str(e)}")
