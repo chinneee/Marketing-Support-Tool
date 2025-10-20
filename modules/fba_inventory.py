@@ -49,20 +49,31 @@ class FBAInventoryProcessor:
             raise Exception(f"Error initializing Google Sheets: {e}")
     
     def process_single_file(self, file_content, filename):
-        """Process a single uploaded file (.xlsx, .csv, .txt) and return a DataFrame"""
+        """Process a single file and return DataFrame"""
         try:
-            # Đọc file theo định dạng
-            if filename.endswith(('.xlsx', '.xls')):
-                # Excel files
+            # Try different file formats
+            if filename.endswith('.xlsx') or filename.endswith('.xls'):
                 df = pd.read_excel(io.BytesIO(file_content))
             elif filename.endswith('.csv'):
-                # CSV files
-                df = pd.read_csv(io.BytesIO(file_content), encoding='utf-8')
+                # Try different encodings for CSV
+                try:
+                    df = pd.read_csv(io.BytesIO(file_content), encoding='utf-8')
+                except:
+                    try:
+                        df = pd.read_csv(io.BytesIO(file_content), encoding='latin-1')
+                    except:
+                        df = pd.read_csv(io.BytesIO(file_content), encoding='iso-8859-1')
             elif filename.endswith('.txt'):
-                # TXT files (tab-delimited)
-                df = pd.read_csv(io.BytesIO(file_content), delimiter='\t', encoding='utf-8')
+                # Try tab-separated first, then comma-separated
+                try:
+                    df = pd.read_csv(io.BytesIO(file_content), sep='\t', encoding='utf-8')
+                except:
+                    try:
+                        df = pd.read_csv(io.BytesIO(file_content), sep=',', encoding='utf-8')
+                    except:
+                        df = pd.read_csv(io.BytesIO(file_content), sep='\t', encoding='latin-1')
             else:
-                raise ValueError(f"❌ Unsupported file format: {filename}")
+                raise ValueError(f"Unsupported file format: {filename}")
             
             df = df.dropna(axis=1, how="all").copy()
             
@@ -149,6 +160,9 @@ def load_credentials_from_file(uploaded_file):
 def fba_inventory_page():
     """FBA Inventory data upload page"""
     
+    st.title("📦 FBA Inventory Manager")
+    st.markdown("Upload and manage FBA inventory data across US, CA, and UK markets")
+    
     # Step 1: Upload credentials
     st.subheader("🔐 Step 1: Upload Google Credentials")
     
@@ -210,9 +224,9 @@ def fba_inventory_page():
             st.markdown(f"### {flag} {market} Market")
             uploaded_file = st.file_uploader(
                 f"FBA Inventory {market}",
-                type=['xlsx', 'xls', 'csv'],
+                type=['xlsx', 'xls', 'csv', 'txt'],
                 key=f"fba_uploader_{market}",
-                help=f"Upload FBA Inventory file for {market} market"
+                help=f"Upload FBA Inventory file for {market} market (Excel, CSV, or Text)"
             )
             
             if uploaded_file:
@@ -431,9 +445,10 @@ def fba_inventory_page():
         with col1:
             st.markdown("""
             **📌 File Requirements:**
-            - Format: `.xlsx`, `.xls`, or `.csv`
+            - Format: `.xlsx`, `.xls`, `.csv`, or `.txt`
             - Must contain FBA inventory data
             - Standard Amazon FBA inventory report format
+            - Text files can be tab or comma separated
             """)
         
         with col2:
