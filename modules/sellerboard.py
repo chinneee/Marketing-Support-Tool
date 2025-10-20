@@ -12,6 +12,7 @@ import json
 from typing import List, Tuple
 import traceback
 import warnings
+import time
 
 # Suppress warnings
 warnings.filterwarnings('ignore', category=FutureWarning)
@@ -43,9 +44,6 @@ class SBProcessor:
         """Initialize Google Sheets connection"""
         try:
             if self.client is None:
-                st.info(f"🔄 Connecting to Google Sheets: {self.sheet_id}")
-                st.info(f"📋 Looking for worksheet: {self.worksheet_name}")
-                
                 scopes = [
                     "https://www.googleapis.com/auth/spreadsheets",
                     "https://www.googleapis.com/auth/drive"
@@ -59,22 +57,16 @@ class SBProcessor:
                 # Try to get worksheet, if not exists, create it
                 try:
                     self.worksheet = self.spreadsheet.worksheet(self.worksheet_name)
-                    st.success(f"✅ Found worksheet: {self.worksheet_name}")
                 except gspread.exceptions.WorksheetNotFound:
-                    st.warning(f"⚠️ Worksheet '{self.worksheet_name}' not found. Creating new one...")
                     self.worksheet = self.spreadsheet.add_worksheet(
                         title=self.worksheet_name,
                         rows="1000",
                         cols="30"
                     )
-                    # Add headers - Fixed: Use named parameters
                     self.worksheet.update(values=[self.standard_columns], range_name='A1')
-                    st.success(f"✅ Created new worksheet: {self.worksheet_name}")
                     
         except Exception as e:
-            st.error(f"❌ Error initializing Google Sheets: {e}")
-            st.text(traceback.format_exc())
-            raise
+            raise Exception(f"Error initializing Google Sheets: {e}")
     
     def extract_date_from_filename(self, filename):
         """Extract first DD_MM_YYYY pattern from filename"""
@@ -85,7 +77,6 @@ class SBProcessor:
     
     def _standardize_columns(self, df):
         """Standardize and select only required columns"""
-        # ✅ Fixed: Create explicit copy to avoid SettingWithCopyWarning
         df = df.copy()
         df.columns = [str(c).strip() for c in df.columns]
         
@@ -108,12 +99,10 @@ class SBProcessor:
         available_columns = [col for col in self.standard_columns if col in df.columns]
         df_filtered = df[available_columns].copy()
         
-        # Thêm các cột thiếu
         for col in self.standard_columns:
             if col not in df_filtered.columns:
                 df_filtered[col] = pd.NA
         
-        # Sắp xếp đúng thứ tự chuẩn
         df_filtered = df_filtered[self.standard_columns]
         return df_filtered
     
@@ -121,14 +110,12 @@ class SBProcessor:
         """Process a single Excel file and return DataFrame with Date column"""
         try:
             df = pd.read_excel(io.BytesIO(file_content))
-            df = df.dropna(axis=1, how="all").copy()  # ✅ Add .copy()
+            df = df.dropna(axis=1, how="all").copy()
             
-            # Extract date from filename
             date_val = self.extract_date_from_filename(filename)
             if date_val:
                 df["Date"] = pd.to_datetime(date_val)
             
-            # Standardize columns
             df = self._standardize_columns(df)
             return df
         except Exception as e:
@@ -150,7 +137,7 @@ class SBProcessor:
         if all_dataframes:
             valid_dataframes = []
             for df in all_dataframes:
-                df_cleaned = df.dropna(axis=1, how="all").copy()  # ✅ Add .copy()
+                df_cleaned = df.dropna(axis=1, how="all").copy()
                 
                 if not df_cleaned.empty:
                     for col in self.standard_columns:
@@ -161,13 +148,11 @@ class SBProcessor:
                     valid_dataframes.append(df_cleaned)
             
             if valid_dataframes:
-                # ✅ Fixed: Filter out empty DataFrames before concat to avoid FutureWarning
                 non_empty_dataframes = [df for df in valid_dataframes if not df.empty and len(df) > 0]
                 
                 if non_empty_dataframes:
                     merged_df = pd.concat(non_empty_dataframes, ignore_index=True, sort=False)
                     
-                    # Sort by Date then Sales
                     if "Date" in merged_df.columns and "Sales" in merged_df.columns:
                         merged_df = merged_df.sort_values(
                             ["Date", "Sales"], ascending=[True, False]
@@ -175,15 +160,11 @@ class SBProcessor:
                     elif "Date" in merged_df.columns:
                         merged_df = merged_df.sort_values("Date")
                     
-                    # Sắp xếp đúng thứ tự chuẩn
                     merged_df = merged_df[self.standard_columns]
-                    
                     return merged_df, processed_files
                 else:
-                    st.warning("⚠️ All uploaded files are empty or invalid.")
                     return pd.DataFrame(), []
             else:
-                st.warning("⚠️ All uploaded files are empty or invalid.")
                 return pd.DataFrame(), []
         else:
             return pd.DataFrame(), []
@@ -193,38 +174,26 @@ class SBProcessor:
         try:
             all_values = self.worksheet.col_values(1)
             data_rows = len([val for val in all_values if val.strip()]) - 1 if all_values else 0
-            st.info(f"📊 Existing rows in sheet: {data_rows}")
             return data_rows
         except Exception as e:
-            st.error(f"⚠️ Error getting sheet data count: {e}")
             return 0
     
     def append_to_sheets(self, df):
         """Append DataFrame to Google Sheets"""
         if df.empty:
-            st.warning("⚠️ No data to upload")
             return False
-
+            
         try:
-            st.info(f"📤 Starting upload of {len(df)} rows...")
-
-            # Initialize connection
             self._init_google_sheets()
-
-            # Get current row count
             existing_rows = self.get_existing_sheet_data_count()
             start_row = max(existing_rows + 2, 2)
             end_row = start_row + len(df) - 1
-
-            # ✅ Auto-expand worksheet if needed
+            
             total_needed_rows = end_row + 1
             current_rows = self.worksheet.row_count
             if total_needed_rows > current_rows:
-                st.warning(f"⚠️ Expanding worksheet: need {total_needed_rows} rows, current {current_rows}")
                 self.worksheet.add_rows(total_needed_rows - current_rows)
-                st.success(f"✅ Expanded worksheet to {total_needed_rows} rows")
-
-            # Prepare data
+            
             values_to_append = []
             for _, row in df.iterrows():
                 row_values = []
@@ -233,34 +202,27 @@ class SBProcessor:
                     if pd.isna(val):
                         row_values.append("")
                     elif isinstance(val, (pd.Timestamp, datetime)):
-                        row_values.append(f"{val.month}/{val.day}/{val.year}")  # M/D/YYYY
+                        row_values.append(f"{val.month}/{val.day}/{val.year}")
                     elif isinstance(val, (float, int)):
                         row_values.append(val)
                     else:
                         row_values.append(str(val))
                 values_to_append.append(row_values)
-
-            # Safe range definition
+            
             end_col_index = len(self.standard_columns)
             end_col_letter = gspread.utils.rowcol_to_a1(1, end_col_index).split('1')[0].strip()
             range_name = f"A{start_row}:{end_col_letter}{end_row}"
-
-            st.info(f"📊 Uploading to range: {range_name}")
-
+            
             self.worksheet.update(
                 values=values_to_append,
                 range_name=range_name,
                 value_input_option="USER_ENTERED"
             )
-
-            st.success(f"✅ Successfully uploaded {len(df)} rows!")
+            
             return True
-
+            
         except Exception as e:
-            st.error(f"❌ Error uploading to Google Sheets: {e}")
-            st.text("Full error trace:")
-            st.text(traceback.format_exc())
-            return False
+            raise Exception(f"Error uploading to Google Sheets: {e}")
 
 
 def load_credentials_from_file(uploaded_file):
@@ -268,7 +230,6 @@ def load_credentials_from_file(uploaded_file):
     try:
         credentials_dict = json.load(uploaded_file)
         
-        # Validate required fields
         required_fields = ['type', 'project_id', 'private_key', 'client_email']
         for field in required_fields:
             if field not in credentials_dict:
@@ -282,6 +243,7 @@ def load_credentials_from_file(uploaded_file):
     except Exception as e:
         st.error(f"❌ Error loading credentials: {e}")
         return None
+
 
 def sellerboard_page():
     """Sellerboard data upload page"""
@@ -333,16 +295,15 @@ def sellerboard_page():
     
     col1, col2, col3 = st.columns(3)
     with col1:
-        # ✅ Fixed: Replace use_container_width with width
-        if st.button("🇺🇸 US Market", width="stretch", 
+        if st.button("🇺🇸 US Market", use_container_width=True, 
                     type="primary" if st.session_state.selected_market == "US" else "secondary"):
             st.session_state.selected_market = "US"
     with col2:
-        if st.button("🇨🇦 CA Market", width="stretch",
+        if st.button("🇨🇦 CA Market", use_container_width=True,
                     type="primary" if st.session_state.selected_market == "CA" else "secondary"):
             st.session_state.selected_market = "CA"
     with col3:
-        if st.button("🇬🇧 UK Market", width="stretch",
+        if st.button("🇬🇧 UK Market", use_container_width=True,
                     type="primary" if st.session_state.selected_market == "UK" else "secondary"):
             st.session_state.selected_market = "UK"
     
@@ -351,7 +312,7 @@ def sellerboard_page():
     
     st.markdown("---")
     
-   # Combined Step: Upload, Process & Export Data Files
+    # Step 4: Upload, Process & Export Data Files
     st.subheader("📂 Step 4: Upload, Process & Export Data")
     
     uploaded_files = st.file_uploader(
@@ -363,96 +324,58 @@ def sellerboard_page():
     )
     
     if uploaded_files:
-        # File upload success indicator
         col1, col2 = st.columns([3, 1])
         with col1:
             st.success(f"✅ {len(uploaded_files)} file(s) uploaded successfully")
         with col2:
-            total_size = sum(f.size for f in uploaded_files) / (1024 * 1024)  # Convert to MB
+            total_size = sum(f.size for f in uploaded_files) / (1024 * 1024)
             st.metric("Total Size", f"{total_size:.2f} MB")
-
-        # Auto-process files
+        
         current_file_names = [f.name for f in uploaded_files]
         
-        # Initialize session state
         if 'last_processed_files' not in st.session_state:
             st.session_state.last_processed_files = []
         
-        # Process if files changed
         if current_file_names != st.session_state.last_processed_files:
-            # Processing section
-            progress_placeholder = st.empty()
-            status_placeholder = st.empty()
-            
-            with status_placeholder.container():
-                st.markdown("### ⚙️ Processing Files...")
-                progress_bar = st.progress(0)
-                status_text = st.empty()
-            
-            try:
-                # Simulate progress steps
-                status_text.text("Initializing processor...")
-                progress_bar.progress(20)
-                
-                processor = SBProcessor(credentials_dict, sheet_id, selected_market)
-                
-                status_text.text("Reading and validating files...")
-                progress_bar.progress(40)
-                
-                result_df, processed_files = processor.process_files(uploaded_files)
-                
-                status_text.text("Finalizing data...")
-                progress_bar.progress(80)
-                
-                # Store in session state
-                st.session_state.result_df = result_df
-                st.session_state.processor = processor
-                st.session_state.processed_files = processed_files
-                st.session_state.last_processed_files = current_file_names
-                
-                progress_bar.progress(100)
-                status_text.text("✅ Processing complete!")
-                
-                # Clear progress indicators after a moment
-                import time
-                time.sleep(0.5)
-                status_placeholder.empty()
-                
-                if not result_df.empty:
+            with st.spinner("⚙️ Processing files..."):
+                try:
+                    processor = SBProcessor(credentials_dict, sheet_id, selected_market)
+                    result_df, processed_files = processor.process_files(uploaded_files)
                     
-                    # Key metrics in cards
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col1:
-                        st.metric("📊 Total Rows", f"{len(result_df):,}")
-                    with col2:
-                        st.metric("📝 Columns", len(result_df.columns))
-                    with col3:
-                        st.metric("📁 Files", len(processed_files))
-                    with col4:
-                        # Calculate data completeness
-                        completeness = (1 - result_df.isnull().sum().sum() / (len(result_df) * len(result_df.columns))) * 100
-                        st.metric("✓ Completeness", f"{completeness:.1f}%")
+                    st.session_state.result_df = result_df
+                    st.session_state.processor = processor
+                    st.session_state.processed_files = processed_files
+                    st.session_state.last_processed_files = current_file_names
                     
-                else:
-                    st.error("❌ No data found in uploaded files")
-                    st.warning("Please verify your files contain data in the expected format.")
-                    
-            except Exception as e:
-                status_placeholder.empty()
-                st.error(f"❌ Error processing files: {str(e)}")
-                st.exception(e)
-                # Clear session state on error
-                for key in ['result_df', 'processor', 'processed_files', 'last_processed_files']:
-                    if key in st.session_state:
-                        del st.session_state[key]
-                st.session_state.last_processed_files = []
+                    if not result_df.empty:
+                        st.success("✅ Processing complete!")
+                    else:
+                        st.error("❌ No data found in uploaded files")
+                        
+                except Exception as e:
+                    st.error(f"❌ Error processing files: {str(e)}")
+                    for key in ['result_df', 'processor', 'processed_files', 'last_processed_files']:
+                        if key in st.session_state:
+                            del st.session_state[key]
         
-        # Display processed data and export options
+        # Display processed data
         if 'result_df' in st.session_state and not st.session_state.result_df.empty:
             result_df = st.session_state.result_df
             processed_files = st.session_state.processed_files
             
-            # Preview controls in one row
+            # Metrics
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("📊 Total Rows", f"{len(result_df):,}")
+            with col2:
+                st.metric("📝 Columns", len(result_df.columns))
+            with col3:
+                st.metric("📁 Files", len(processed_files))
+            with col4:
+                completeness = (1 - result_df.isnull().sum().sum() / (len(result_df) * len(result_df.columns))) * 100
+                st.metric("✓ Completeness", f"{completeness:.1f}%")
+            
+            # Preview
             col1, col2, col3 = st.columns([2, 1, 1])
             with col1:
                 preview_rows = st.slider(
@@ -464,26 +387,18 @@ def sellerboard_page():
                 )
             with col2:
                 show_all = st.checkbox("All columns", value=False)
-
             
-            # Display dataframe
             display_df = result_df if show_all else (result_df.iloc[:, :8] if len(result_df.columns) > 8 else result_df)
-            st.dataframe(
-                display_df.head(preview_rows),
-                width="stretch",
-                height=300
-            )
+            st.dataframe(display_df.head(preview_rows), use_container_width=True, height=300)
             
             if not show_all and len(result_df.columns) > 8:
                 st.caption(f"Showing 8 of {len(result_df.columns)} columns. Enable 'All columns' to see more.")
             
             st.markdown("---")
             
-            # Export section - Simplified and prominent
+            # Export section
             st.markdown("### 📤 Export Options")
-            st.caption("Choose how to save or upload your processed data")
             
-            # Helper function for Excel export
             def export_to_excel(df, market):
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -492,25 +407,20 @@ def sellerboard_page():
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 return output, f"SB_{market}_{timestamp}.xlsx"
             
-            # Export buttons in a clean layout
             col1, col2 = st.columns(2)
             
             with col1:
                 st.markdown("#### 📥 Download Locally")
-                st.caption("Save processed data to your computer")
                 
-                # Excel download
                 excel_data, filename = export_to_excel(result_df, selected_market)
                 st.download_button(
                     label="💾 Download Excel",
                     data=excel_data,
                     file_name=filename,
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    width="stretch",
-                    help="Download as Excel file (.xlsx)"
+                    use_container_width=True
                 )
                 
-                # CSV download
                 csv = result_df.to_csv(index=False).encode('utf-8')
                 csv_filename = filename.replace('.xlsx', '.csv')
                 st.download_button(
@@ -518,67 +428,43 @@ def sellerboard_page():
                     data=csv,
                     file_name=csv_filename,
                     mime="text/csv",
-                    width="stretch",
-                    help="Download as CSV file (lighter format)"
+                    use_container_width=True
                 )
-
-                    
+            
             with col2:
                 st.markdown("#### ☁️ Upload to Cloud")
-                st.caption("Push data directly to Google Sheets")
-                
                 st.info(f"**Target:** {selected_market} market sheet\n\n**Rows:** {len(result_df):,}")
                 
-                if st.button("🚀 Push to Google Sheets", type="primary", use_container_width=True):
-                    # Tạo container riêng cho progress
-                    progress_container = st.container()
+                # ✅ KEY FIX: Use unique key for button to prevent state conflicts
+                if st.button("🚀 Push to Google Sheets", 
+                            type="primary", 
+                            use_container_width=True,
+                            key="push_to_sheets_btn"):
                     
-                    with progress_container:
-                        progress_bar = st.progress(0, text="Connecting to Google Sheets...")
-                        
-                        try:
-                            # Connect
-                            progress_bar.progress(25, text="Connecting to Google Sheets...")
-                            
-                            # Upload
-                            progress_bar.progress(50, text="Uploading data...")
+                    try:
+                        with st.spinner("Uploading to Google Sheets..."):
                             success = st.session_state.processor.append_to_sheets(result_df)
+                        
+                        if success:
+                            st.success(f"✅ Successfully uploaded {len(result_df):,} rows!")
                             
-                            # Verify
-                            progress_bar.progress(90, text="Verifying upload...")
+                            with st.expander("📊 Upload Summary", expanded=True):
+                                st.markdown(f"""
+                                - **Market:** {selected_market}
+                                - **Rows uploaded:** {len(result_df):,}
+                                - **Columns:** {len(result_df.columns)}
+                                - **Files processed:** {len(processed_files)}
+                                - **Timestamp:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+                                """)
+                        else:
+                            st.error("❌ Upload failed")
                             
-                            if success:
-                                progress_bar.progress(100, text="✅ Upload complete!")
-                                
-                                # Xóa progress bar sau khi hoàn thành
-                                import time
-                                time.sleep(0.5)
-                                progress_bar.empty()
-                                
-                                # Hiển thị kết quả
-                                st.success(f"✅ Successfully uploaded {len(result_df):,} rows to Google Sheets!")
-                                
-                                num_files = len(processed_files) if 'processed_files' in locals() else 0
-                                with st.expander("📊 Upload Summary", expanded=True):
-                                    st.markdown(f"""
-                                    - **Market:** {selected_market}
-                                    - **Rows uploaded:** {len(result_df):,}
-                                    - **Columns:** {len(result_df.columns)}
-                                    - **Files processed:** {num_files}
-                                    - **Timestamp:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-                                    """)
-                            else:
-                                progress_bar.empty()
-                                st.error("❌ Upload failed - Please check your Google Sheets configuration")
-                                
-                        except Exception as e:
-                            progress_bar.empty()
-                            st.error(f"❌ Upload failed: {str(e)}")
-                            with st.expander("🔍 Error Details"):
-                                st.code(traceback.format_exc())
-
+                    except Exception as e:
+                        st.error(f"❌ Upload failed: {str(e)}")
+                        with st.expander("🔍 Error Details"):
+                            st.code(traceback.format_exc())
+    
     else:
-        # Empty state
         st.info("👆 **Upload Excel files to get started**")
         
         col1, col2 = st.columns(2)
