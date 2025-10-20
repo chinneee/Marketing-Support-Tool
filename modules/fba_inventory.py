@@ -160,8 +160,6 @@ def load_credentials_from_file(uploaded_file):
 def fba_inventory_page():
     """FBA Inventory data upload page"""
     
-    st.title("📦 FBA Inventory Manager")
-    st.markdown("Upload and manage FBA inventory data across US, CA, and UK markets")
     
     # Step 1: Upload credentials
     st.subheader("🔐 Step 1: Upload Google Credentials")
