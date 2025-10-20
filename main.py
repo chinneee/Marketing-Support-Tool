@@ -3,6 +3,7 @@ from modules.sellerboard import sellerboard_page
 from modules.ppc_xnurta import ppc_xnurta_page
 from modules.dsp_xnurta import dsp_xnurta_page
 from datetime import datetime
+import pytz
 
 def main():
     st.set_page_config(
@@ -105,10 +106,7 @@ def main():
     with col3:
         st.metric(label="⚡ Active Markets", value="3", delta="US, CA, UK")
     with col4:
-        st.metric(label="🕐 Last Updated", value=datetime.now().strftime("%H:%M"))
-    
-    st.markdown("---")
-    
+        st.metric(label="🕐 Last Updated", value=datetime.now(pytz.timezone('Asia/Ho_Chi_Minh')).strftime('%H:%M'))
     # Sidebar navigation with enhanced UI
     st.sidebar.markdown("# 📋 Navigation")
     st.sidebar.markdown("*Select the tool you want to use*")
