@@ -557,8 +557,6 @@ def sellerboard_page():
                                 upload_placeholder.empty()
 
                                 st.success(f"✅ Successfully uploaded {len(result_df):,} rows to Google Sheets!")
-                                st.balloons()
-
                                 num_files = len(processed_files) if 'processed_files' in locals() else 0
                                 with st.expander("📊 Upload Summary", expanded=True):
                                     st.markdown(f"""
