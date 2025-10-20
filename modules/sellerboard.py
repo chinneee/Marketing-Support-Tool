@@ -526,37 +526,38 @@ def sellerboard_page():
             with col2:
                 st.markdown("#### ☁️ Upload to Cloud")
                 st.caption("Push data directly to Google Sheets")
-
+                
                 st.info(f"**Target:** {selected_market} market sheet\n\n**Rows:** {len(result_df):,}")
-
-                if st.button("🚀 Push to Google Sheets", type="primary", help="Upload data to your Google Sheets"):
-                    upload_placeholder = st.empty()
-
-                    with upload_placeholder.container():
-                        st.markdown("---")
-                        progress_bar = st.progress(0)
-                        status_text = st.empty()
-
+                
+                if st.button("🚀 Push to Google Sheets", type="primary", use_container_width=True):
+                    # Tạo container riêng cho progress
+                    progress_container = st.container()
+                    
+                    with progress_container:
+                        progress_bar = st.progress(0, text="Connecting to Google Sheets...")
+                        
                         try:
-                            status_text.text("Connecting to Google Sheets...")
-                            progress_bar.progress(25)
-
-                            status_text.text("Uploading data...")
-                            progress_bar.progress(50)
-
+                            # Connect
+                            progress_bar.progress(25, text="Connecting to Google Sheets...")
+                            
+                            # Upload
+                            progress_bar.progress(50, text="Uploading data...")
                             success = st.session_state.processor.append_to_sheets(result_df)
-
-                            status_text.text("Verifying upload...")
-                            progress_bar.progress(90)
-
-                            if success is True:
-                                progress_bar.progress(100)
-                                status_text.text("✅ Upload complete!")
-
-                                # await asyncio.sleep(0.5)  # hoặc bỏ hẳn
-                                upload_placeholder.empty()
-
+                            
+                            # Verify
+                            progress_bar.progress(90, text="Verifying upload...")
+                            
+                            if success:
+                                progress_bar.progress(100, text="✅ Upload complete!")
+                                
+                                # Xóa progress bar sau khi hoàn thành
+                                import time
+                                time.sleep(0.5)
+                                progress_bar.empty()
+                                
+                                # Hiển thị kết quả
                                 st.success(f"✅ Successfully uploaded {len(result_df):,} rows to Google Sheets!")
+                                
                                 num_files = len(processed_files) if 'processed_files' in locals() else 0
                                 with st.expander("📊 Upload Summary", expanded=True):
                                     st.markdown(f"""
@@ -567,17 +568,17 @@ def sellerboard_page():
                                     - **Timestamp:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                                     """)
                             else:
-                                upload_placeholder.empty()
-                                st.error("❌ Upload failed - Please check the error messages above")
-
+                                progress_bar.empty()
+                                st.error("❌ Upload failed - Please check your Google Sheets configuration")
+                                
                         except Exception as e:
-                            upload_placeholder.empty()
+                            progress_bar.empty()
                             st.error(f"❌ Upload failed: {str(e)}")
                             with st.expander("🔍 Error Details"):
                                 st.code(traceback.format_exc())
-            
+
     else:
-        # Empty state with helpful instructions
+        # Empty state
         st.info("👆 **Upload Excel files to get started**")
         
         col1, col2 = st.columns(2)
