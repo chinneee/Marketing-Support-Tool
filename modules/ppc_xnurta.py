@@ -378,7 +378,7 @@ def ppc_xnurta_page():
     
     sheet_id = st.text_input(
         "Google Sheet ID",
-        value="1rqH3SePVbpwcj1oD4Bqaa40IbkyKUi7aRBThlBdnEu4",
+        value="1GpPsWt_fWCfHnEdFQJIsNBebhqFnIiExsHA8SjNUhFk",
         help="Find this in your Google Sheet URL"
     )
     
