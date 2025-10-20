@@ -374,7 +374,7 @@ def launching_dimension_page():
             with col2:
                 st.markdown("#### ☁️ Upload to Google Sheets")
                 
-                st.info(f"**Target Sheet:** `Launching`\n\n**Rows:** {len(df):,}\n\n**Columns:** A to P (16 columns)\n\n⚠️ **Note:** Only columns A-P will be cleared and updated")
+                st.info(f"**Target Sheet:** `Dim_Launching`\n\n**Rows:** {len(df):,}\n\n**Columns:** A to P (16 columns)\n\n⚠️ **Note:** Only columns A-P will be cleared and updated")
                 
                 if st.button("🚀 Push to Google Sheets", 
                             type="primary", 
