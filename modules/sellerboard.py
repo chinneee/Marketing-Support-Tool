@@ -13,6 +13,7 @@ from typing import List, Tuple
 import traceback
 import warnings
 import time
+import pytz
 
 # Suppress warnings
 warnings.filterwarnings('ignore', category=FutureWarning)
@@ -454,7 +455,7 @@ def sellerboard_page():
                                 - **Rows uploaded:** {len(result_df):,}
                                 - **Columns:** {len(result_df.columns)}
                                 - **Files processed:** {len(processed_files)}
-                                - **Timestamp:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+                                - **Timestamp:** {datetime.now(pytz.timezone('Asia/Ho_Chi_Minh')).strftime('%Y-%m-%d %H:%M:%S')}
                                 """)
                         else:
                             st.error("❌ Upload failed")
