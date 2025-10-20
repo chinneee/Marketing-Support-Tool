@@ -2,6 +2,7 @@ import streamlit as st
 from modules.sellerboard import sellerboard_page
 from modules.ppc_xnurta import ppc_xnurta_page
 from modules.dsp_xnurta import dsp_xnurta_page
+from modules.fba_inventory import fba_inventory_page
 from datetime import datetime
 import pytz
 import os
@@ -145,9 +146,9 @@ def main():
         "📊 Sellerboard": "✅ Active",
         "💰 PPC XNurta": "✅ Active",
         "📺 DSP XNurta": "✅ Active",
-        "📦 FBA Inventory": "🚧 Coming Soon",
-        "🔍 ASIN - Dimension": "🚧 Coming Soon",
-        "🚀 Launching - Dimension": "🚧 Coming Soon"
+        "📦 FBA Inventory": "✅ Active",
+        "🔍 ASIN - Dimension": "✅ Active",
+        "🚀 Launching - Dimension": "✅ Active",
     }
     
     page = st.sidebar.radio(
@@ -262,21 +263,9 @@ def main():
         
     elif page == "📦 FBA Inventory":
         st.markdown("## 📦 FBA Inventory Management")
-        st.info("🚧 **Module Under Development**")
-        st.markdown("""
-        This module is currently being developed and will include:
-        
-        - 📊 Real-time inventory tracking
-        - 📈 Stock level analytics
-        - 🔔 Low stock alerts
-        - 📦 Reorder recommendations
-        - 📉 Inventory turnover analysis
-        
-        **Expected Release:** Q1 2026
-        """)
-        
-        if st.button("🔔 Notify me when available"):
-            st.success("✅ You'll be notified when this module is ready!")
+        st.markdown("*Manage your Sellerboard reports and analytics*")
+        st.markdown("")
+        fba_inventory_page()
             
     elif page == "🔍 ASIN - Dimension":
         st.markdown("## 🔍 ASIN Dimension Analysis")
