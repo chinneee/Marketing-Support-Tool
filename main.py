@@ -149,8 +149,8 @@ def main():
         "💰 PPC XNurta": "✅ Active",
         "📺 DSP XNurta": "✅ Active",
         "📦 FBA Inventory": "✅ Active",
-        "🔍 ASIN - Dimension": "✅ Active",
-        "🚀 Launching - Dimension": "✅ Active",
+        "🔍 ASIN": "✅ Active",
+        "🚀 Launching": "✅ Active",
     }
     
     page = st.sidebar.radio(
@@ -269,14 +269,14 @@ def main():
         st.markdown("")
         fba_inventory_page()
             
-    elif page == "🔍 ASIN - Dimension":
+    elif page == "🔍 ASIN":
         st.markdown("## 🔍 ASIN Dimension Analysis")
         st.markdown("*Manage your Product reports and analytics*")
         st.markdown("")
         asin_dimension_page()
 
             
-    elif page == "🚀 Launching - Dimension":
+    elif page == "🚀 Launching":
         st.markdown("## 🚀 Product Launch Analytics")
         st.markdown("*Manage your Product reports and analytics*")
         st.markdown("")
