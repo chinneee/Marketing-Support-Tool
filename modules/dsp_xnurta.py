@@ -271,7 +271,7 @@ def dsp_xnurta_page():
     
     sheet_id = st.text_input(
         "Google Sheet ID",
-        value="1GpPsWt_fWCfHnEdFQJIsNBebhqFnIiExsHA8SjNUhFk",
+        value="1rqH3SePVbpwcj1oD4Bqaa40IbkyKUi7aRBThlBdnEu4",
         help="Format: docs.google.com/spreadsheets/d/{SHEET_ID}/edit",
         key="dsp_sheet_id"
     )
@@ -407,14 +407,13 @@ def dsp_xnurta_page():
             
             st.markdown("---")
             
-            # Export section
             st.markdown("### 📤 Export Options")
-            
+
             col1, col2 = st.columns(2)
-            
+
             with col1:
                 st.markdown("#### 📥 Download Locally")
-                
+
                 excel_data, filename = export_to_excel_bytes(result_df, selected_market)
                 st.download_button(
                     label="💾 Download Excel",
@@ -424,7 +423,7 @@ def dsp_xnurta_page():
                     use_container_width=True,
                     key="dsp_download_excel"
                 )
-                
+
                 csv = result_df.to_csv(index=False).encode('utf-8')
                 csv_filename = filename.replace('.xlsx', '.csv')
                 st.download_button(
@@ -435,11 +434,21 @@ def dsp_xnurta_page():
                     use_container_width=True,
                     key="dsp_download_csv"
                 )
-            
+
             with col2:
                 st.markdown("#### ☁️ Upload to Cloud")
                 st.info(f"**Target:** {selected_market} market sheet\n\n**Rows:** {len(result_df):,}")
-                
+
+                # --- NEW FEATURE: Optional Delete by Date ---
+                with st.expander("🧹 Optional: Delete existing data from date"):
+                    delete_date = st.date_input(
+                        "Select start date to delete existing data from this date onward (optional)",
+                        value=None,
+                        key="dsp_delete_date"
+                    )
+                    if delete_date:
+                        st.warning(f"⚠️ Existing data from **{delete_date.strftime('%Y-%m-%d')}** onward will be deleted before upload.")
+
                 if st.button(
                     "🚀 Push to Google Sheets",
                     type="primary",
@@ -447,23 +456,45 @@ def dsp_xnurta_page():
                     key="dsp_push_to_sheets_btn"
                 ):
                     try:
+                        processor = st.session_state.dsp_processor
                         with st.spinner("Uploading to Google Sheets..."):
-                            success = st.session_state.dsp_processor.append_to_sheets(result_df, selected_market)
-                        
+                            # If delete_date selected → delete data first
+                            if delete_date:
+                                st.info(f"🧹 Deleting existing data from {delete_date.strftime('%Y-%m-%d')} onward...")
+                                processor._init_google_sheets(selected_market)
+                                existing_df = pd.DataFrame(processor.worksheet.get_all_records())
+
+                                if not existing_df.empty and "Date" in existing_df.columns:
+                                    existing_df["Date"] = pd.to_datetime(existing_df["Date"], errors="coerce")
+                                    keep_df = existing_df[existing_df["Date"] < pd.to_datetime(delete_date)]
+                                    
+                                    # Clear old data
+                                    processor.worksheet.clear()
+                                    processor.worksheet.update(
+                                        [list(keep_df.columns)] + keep_df.astype(str).fillna("").values.tolist(),
+                                        value_input_option="USER_ENTERED"
+                                    )
+                                    st.success(f"✅ Deleted and kept {len(keep_df):,} older rows.")
+                                else:
+                                    st.warning("⚠️ No existing data found or no valid 'Date' column — skipping delete step.")
+
+                            # --- Push new data ---
+                            success = processor.append_to_sheets(result_df, selected_market)
+
                         if success:
                             st.success(f"✅ Successfully uploaded {len(result_df):,} rows!")
-                            
                             with st.expander("📊 Upload Summary", expanded=True):
                                 st.markdown(f"""
                                 - **Market:** {selected_market}
                                 - **Rows uploaded:** {len(result_df):,}
                                 - **Columns:** {len(result_df.columns)}
                                 - **Files processed:** {len(processed_files)}
+                                - **Delete from date:** {delete_date.strftime('%Y-%m-%d') if delete_date else 'Not applied'}
                                 - **Timestamp:** {datetime.now(pytz.timezone('Asia/Ho_Chi_Minh')).strftime('%Y-%m-%d %H:%M:%S')}
                                 """)
                         else:
                             st.error("❌ Upload failed")
-                            
+
                     except Exception as e:
                         st.error(f"❌ Upload failed: {str(e)}")
                         with st.expander("🔍 Error Details"):
