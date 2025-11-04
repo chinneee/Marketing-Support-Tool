@@ -271,7 +271,7 @@ def dsp_xnurta_page():
     
     sheet_id = st.text_input(
         "Google Sheet ID",
-        value="1rqH3SePVbpwcj1oD4Bqaa40IbkyKUi7aRBThlBdnEu4",
+        value="1GpPsWt_fWCfHnEdFQJIsNBebhqFnIiExsHA8SjNUhFk",
         help="Format: docs.google.com/spreadsheets/d/{SHEET_ID}/edit",
         key="dsp_sheet_id"
     )
