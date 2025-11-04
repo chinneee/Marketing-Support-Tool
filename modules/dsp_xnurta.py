@@ -496,9 +496,9 @@ def dsp_xnurta_page():
                             st.error("❌ Upload failed")
 
                     except Exception as e:
-                        st.error(f"❌ Upload failed: {str(e)}")
-                        with st.expander("🔍 Error Details"):
-                            st.code(traceback.format_exc())
+                                st.error(f"❌ Upload failed: {str(e)}")
+                                with st.expander("🔍 Error Details"):
+                                    st.code(traceback.format_exc())       
     
     else:
         st.info("👆 **Upload Excel files to get started**")
