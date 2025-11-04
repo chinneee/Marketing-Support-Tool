@@ -14,7 +14,6 @@ import traceback
 import warnings
 import time
 import pytz
-
 # Suppress warnings
 warnings.filterwarnings('ignore', category=FutureWarning)
 warnings.filterwarnings('ignore', category=pd.errors.SettingWithCopyWarning)
@@ -179,13 +178,87 @@ class SBProcessor:
         except Exception as e:
             return 0
     
-    def append_to_sheets(self, df):
-        """Append DataFrame to Google Sheets"""
+    def delete_data_from_date(self, from_date):
+        """Delete all data from specified date onwards"""
+        try:
+            self._init_google_sheets()
+            
+            # Get all data including headers
+            all_data = self.worksheet.get_all_values()
+            
+            if len(all_data) <= 1:  # Only header or empty
+                return 0, "No data to delete"
+            
+            headers = all_data[0]
+            data_rows = all_data[1:]
+            
+            # Find Date column index
+            try:
+                date_col_idx = headers.index('Date')
+            except ValueError:
+                return 0, "Date column not found in sheet"
+            
+            # Filter rows to keep (before from_date)
+            rows_to_keep = []
+            rows_deleted = 0
+            
+            for row in data_rows:
+                if len(row) > date_col_idx and row[date_col_idx]:
+                    try:
+                        # Parse date from sheet (format: M/D/YYYY or similar)
+                        row_date_str = row[date_col_idx].strip()
+                        if row_date_str:
+                            # Try multiple date formats
+                            row_date = None
+                            for fmt in ['%m/%d/%Y', '%d/%m/%Y', '%Y-%m-%d', '%m-%d-%Y']:
+                                try:
+                                    row_date = datetime.strptime(row_date_str, fmt).date()
+                                    break
+                                except:
+                                    continue
+                            
+                            if row_date and row_date < from_date:
+                                rows_to_keep.append(row)
+                            else:
+                                rows_deleted += 1
+                        else:
+                            rows_to_keep.append(row)  # Keep rows without date
+                    except:
+                        rows_to_keep.append(row)  # Keep rows with invalid date format
+                else:
+                    rows_to_keep.append(row)  # Keep rows without date column
+            
+            if rows_deleted > 0:
+                # Clear all data except header
+                self.worksheet.clear()
+                
+                # Rewrite header and remaining data
+                data_to_write = [headers] + rows_to_keep
+                if data_to_write:
+                    self.worksheet.update(values=data_to_write, range_name='A1')
+                
+                return rows_deleted, f"Successfully deleted {rows_deleted} rows from {from_date.strftime('%d/%m/%Y')} onwards"
+            else:
+                return 0, f"No data found from {from_date.strftime('%d/%m/%Y')} onwards"
+                
+        except Exception as e:
+            raise Exception(f"Error deleting data: {str(e)}")
+    
+    def append_to_sheets(self, df, delete_from_date=None):
+        """Append DataFrame to Google Sheets with optional date-based deletion"""
         if df.empty:
-            return False
+            return False, "No data to upload"
             
         try:
             self._init_google_sheets()
+            
+            # Delete data if date is specified
+            delete_info = ""
+            if delete_from_date:
+                rows_deleted, msg = self.delete_data_from_date(delete_from_date)
+                delete_info = msg
+            
+            # Get current data count after deletion
             existing_rows = self.get_existing_sheet_data_count()
             start_row = max(existing_rows + 2, 2)
             end_row = start_row + len(df) - 1
@@ -220,11 +293,10 @@ class SBProcessor:
                 value_input_option="USER_ENTERED"
             )
             
-            return True
+            return True, delete_info
             
         except Exception as e:
             raise Exception(f"Error uploading to Google Sheets: {e}")
-
 
 def load_credentials_from_file(uploaded_file):
     """Load Google Sheets credentials from uploaded JSON file"""
@@ -244,7 +316,6 @@ def load_credentials_from_file(uploaded_file):
     except Exception as e:
         st.error(f"❌ Error loading credentials: {e}")
         return None
-
 
 def sellerboard_page():
     """Sellerboard data upload page"""
@@ -278,7 +349,7 @@ def sellerboard_page():
     
     sheet_id = st.text_input(
         "Google Sheet ID",
-        value="1GpPsWt_fWCfHnEdFQJIsNBebhqFnIiExsHA8SjNUhFk",
+        value="1rqH3SePVbpwcj1oD4Bqaa40IbkyKUi7aRBThlBdnEu4",
         help="Find this in your Google Sheet URL: docs.google.com/spreadsheets/d/{SHEET_ID}/edit"
     )
     
@@ -436,7 +507,37 @@ def sellerboard_page():
                 st.markdown("#### ☁️ Upload to Cloud")
                 st.info(f"**Target:** {selected_market} market sheet\n\n**Rows:** {len(result_df):,}")
                 
-                # ✅ KEY FIX: Use unique key for button to prevent state conflicts
+                # Optional: Delete data from date
+                with st.expander("🗑️ Optional: Delete Data from Date", expanded=False):
+                    st.caption("⚠️ This will delete all existing data from the selected date onwards before uploading new data")
+                    
+                    enable_delete = st.checkbox(
+                        "Enable data deletion",
+                        value=False,
+                        key="enable_delete_checkbox"
+                    )
+                    
+                    delete_from_date = None
+                    if enable_delete:
+                        # Get min and max dates from uploaded data for reference
+                        if 'Date' in result_df.columns:
+                            result_df['Date'] = pd.to_datetime(result_df['Date'])
+                            min_date = result_df['Date'].min().date()
+                            max_date = result_df['Date'].max().date()
+                            
+                            st.info(f"📅 Your uploaded data range: {min_date.strftime('%d/%m/%Y')} to {max_date.strftime('%d/%m/%Y')}")
+                        
+                        delete_from_date = st.date_input(
+                            "Delete data from this date onwards:",
+                            value=datetime.now().date(),
+                            help="All data from this date onwards will be deleted before uploading new data",
+                            key="delete_from_date_input"
+                        )
+                        
+                        if delete_from_date:
+                            st.warning(f"⚠️ Will delete all data from **{delete_from_date.strftime('%d/%m/%Y')}** onwards")
+                
+                # Push to Google Sheets button
                 if st.button("🚀 Push to Google Sheets", 
                             type="primary", 
                             use_container_width=True,
@@ -444,21 +545,29 @@ def sellerboard_page():
                     
                     try:
                         with st.spinner("Uploading to Google Sheets..."):
-                            success = st.session_state.processor.append_to_sheets(result_df)
+                            success, info_msg = st.session_state.processor.append_to_sheets(
+                                result_df, 
+                                delete_from_date=delete_from_date if enable_delete else None
+                            )
                         
                         if success:
                             st.success(f"✅ Successfully uploaded {len(result_df):,} rows!")
                             
                             with st.expander("📊 Upload Summary", expanded=True):
-                                st.markdown(f"""
+                                summary_text = f"""
                                 - **Market:** {selected_market}
                                 - **Rows uploaded:** {len(result_df):,}
                                 - **Columns:** {len(result_df.columns)}
                                 - **Files processed:** {len(processed_files)}
                                 - **Timestamp:** {datetime.now(pytz.timezone('Asia/Ho_Chi_Minh')).strftime('%Y-%m-%d %H:%M:%S')}
-                                """)
+                                """
+                                
+                                if info_msg:
+                                    summary_text += f"\n- **Deletion:** {info_msg}"
+                                
+                                st.markdown(summary_text)
                         else:
-                            st.error("❌ Upload failed")
+                            st.error(f"❌ Upload failed: {info_msg}")
                             
                     except Exception as e:
                         st.error(f"❌ Upload failed: {str(e)}")
@@ -485,3 +594,8 @@ def sellerboard_page():
             3. Preview & export options appear
             4. Choose download or upload to Sheets
             """)
+
+# For testing
+if __name__ == "__main__":
+    st.set_page_config(page_title="Sellerboard Uploader", layout="wide")
+    sellerboard_page()
