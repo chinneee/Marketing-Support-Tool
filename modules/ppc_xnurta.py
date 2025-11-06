@@ -28,7 +28,7 @@ class PPCProcessor:
         # Define standard columns
         self.required_columns = [
             'ASIN', 'Date', 'Campaign type', 'Campaign', 'Status', 'Country', 'Portfolio',
-            'Daily Budget', 'Bidding Strategy', 'Top-of-search IS', 'Avg.time in Budget',
+            'Daily budget', 'Bidding Strategy', 'Top-of-search IS', 'Avg.time in budget',
             'Impressions', 'Clicks', 'CTR', 'Spend', 'CPC', 'Orders', 'Sales', 'Units', 'CVR'
         ]
         
