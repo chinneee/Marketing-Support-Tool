@@ -28,7 +28,7 @@ class PPCProcessor:
         # Define standard columns
         self.required_columns = [
             'ASIN', 'Date', 'Campaign type', 'Campaign', 'Status', 'Country', 'Portfolio',
-            'Daily budget', 'Bidding Strategy', 'Top-of-search IS', 'Avg.time in budget',
+            'Daily budget', 'Bidding strategy', 'Top-of-search IS', 'Avg.time in budget',
             'Impressions', 'Clicks', 'CTR', 'Spend', 'CPC', 'Orders', 'Sales', 'Units', 'CVR'
         ]
         
@@ -208,12 +208,12 @@ class PPCProcessor:
             if 'Campaign type' in df.columns:
                 df['Campaign type'] = df['Campaign type'].apply(self.safe_normalize_campaign_types)
             
-            currency_columns = ['Daily Budget', 'Spend', 'Sales']
+            currency_columns = ['Daily budget', 'Spend', 'Sales']
             for col in currency_columns:
                 if col in df.columns:
                     df[col] = self.safe_clean_currency_column(df[col])
             
-            float_columns = ['Avg.time in Budget', 'Top-of-search IS', 'CPC', 'CVR', 'CTR']
+            float_columns = ['Avg.time in budget', 'Top-of-search IS', 'CPC', 'CVR', 'CTR']
             for col in float_columns:
                 if col in df.columns:
                     df[col] = self.safe_convert_to_float(df[col])
