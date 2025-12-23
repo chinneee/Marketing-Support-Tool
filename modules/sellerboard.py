@@ -120,6 +120,7 @@ class SBProcessor:
             df = pd.read_excel(
                 io.BytesIO(file_content),
                 engine='openpyxl',
+                # Use string dtype for text columns to avoid mixed type issues
             )
             
             # Drop empty columns in one go
@@ -194,51 +195,6 @@ class SBProcessor:
             merged_df = merged_df.sort_values("Date", ignore_index=True)
         
         return merged_df, processed_files
-    
-    def detect_missing_sessions(self, df):
-        """Detect dates that have rows but no Sessions value"""
-        if df.empty or 'Date' not in df.columns or 'Sessions' not in df.columns:
-            return []
-        
-        df_copy = df.copy()
-        df_copy['Date'] = pd.to_datetime(df_copy['Date'])
-        
-        # Group by date and check if all Sessions values are null/empty
-        missing_dates = []
-        for date, group in df_copy.groupby(df_copy['Date'].dt.date):
-            sessions_values = group['Sessions'].dropna()
-            # Check if all sessions are null or all are 0/empty
-            if len(sessions_values) == 0 or sessions_values.isna().all():
-                missing_dates.append(date)
-        
-        return sorted(missing_dates)
-    
-    def fill_missing_sessions(self, df, sessions_dict):
-        """Fill missing sessions for specified dates
-        sessions_dict: {date: session_value}
-        """
-        if df.empty or not sessions_dict:
-            return df
-        
-        df_copy = df.copy()
-        df_copy['Date'] = pd.to_datetime(df_copy['Date'])
-        
-        for date, session_value in sessions_dict.items():
-            # Convert date to datetime for comparison
-            date_dt = pd.to_datetime(date)
-            
-            # Find rows for this date
-            date_mask = df_copy['Date'].dt.date == date
-            date_rows = df_copy[date_mask]
-            
-            if len(date_rows) > 0:
-                # Get the last row index for this date
-                last_idx = date_rows.index[-1]
-                
-                # Fill the Sessions value at the last row
-                df_copy.at[last_idx, 'Sessions'] = session_value
-        
-        return df_copy
     
     def get_existing_sheet_data_count(self):
         """Get current number of rows in the sheet - Optimized"""
@@ -494,7 +450,7 @@ def sellerboard_page():
     st.markdown("---")
     
     # Step 4: Upload, Process & Export Data Files
-    st.subheader("📂 Step 4: Upload & Process Data")
+    st.subheader("📂 Step 4: Upload, Process & Export Data")
     
     uploaded_files = st.file_uploader(
         "Upload Excel files (DD_MM_YYYY format in filename)",
@@ -531,81 +487,19 @@ def sellerboard_page():
                     st.session_state.processed_files = processed_files
                     st.session_state.last_processed_files = current_file_names
                     
-                    # Detect missing sessions
                     if not result_df.empty:
-                        missing_dates = processor.detect_missing_sessions(result_df)
-                        st.session_state.missing_dates = missing_dates
-                        st.session_state.sessions_filled = False
                         st.success(f"✅ Processing complete in {processing_time:.2f}s!")
                     else:
                         st.error("❌ No data found in uploaded files")
                         
                 except Exception as e:
                     st.error(f"❌ Error processing files: {str(e)}")
-                    for key in ['result_df', 'processor', 'processed_files', 'last_processed_files', 'missing_dates']:
+                    for key in ['result_df', 'processor', 'processed_files', 'last_processed_files']:
                         if key in st.session_state:
                             del st.session_state[key]
         
-        # Step 4.5: Handle missing sessions
-        if 'missing_dates' in st.session_state and st.session_state.missing_dates and not st.session_state.get('sessions_filled', False):
-            st.markdown("---")
-            st.subheader("⚠️ Step 4.5: Fill Missing Sessions Data")
-            
-            missing_dates = st.session_state.missing_dates
-            
-            st.warning(f"Phát hiện **{len(missing_dates)}** ngày chưa có dữ liệu Sessions!")
-            
-            st.info("📋 Các ngày cần nhập Total Sessions:")
-            for date in missing_dates:
-                st.markdown(f"- **{date.strftime('%d/%m/%Y')}**")
-            
-            st.markdown("---")
-            
-            # Create input fields for each missing date
-            sessions_dict = {}
-            
-            st.markdown("### 📝 Nhập Total Sessions cho từng ngày:")
-            
-            for date in missing_dates:
-                col1, col2 = st.columns([2, 1])
-                with col1:
-                    st.markdown(f"**Ngày {date.strftime('%d/%m/%Y')}:**")
-                with col2:
-                    session_value = st.number_input(
-                        f"Total Sessions",
-                        min_value=0,
-                        value=0,
-                        step=1,
-                        key=f"session_{date}",
-                        label_visibility="collapsed"
-                    )
-                    sessions_dict[date] = session_value
-            
-            st.markdown("---")
-            
-            # Button to apply sessions
-            col1, col2, col3 = st.columns([1, 1, 1])
-            with col2:
-                if st.button("✅ Áp dụng Sessions", type="primary", use_container_width=True):
-                    # Check if all sessions are filled
-                    if all(v > 0 for v in sessions_dict.values()):
-                        with st.spinner("Đang cập nhật Sessions..."):
-                            updated_df = st.session_state.processor.fill_missing_sessions(
-                                st.session_state.result_df,
-                                sessions_dict
-                            )
-                            st.session_state.result_df = updated_df
-                            st.session_state.sessions_filled = True
-                            st.success("✅ Đã cập nhật Sessions thành công!")
-                            st.rerun()
-                    else:
-                        st.error("❌ Vui lòng nhập Sessions > 0 cho tất cả các ngày!")
-        
         # Display processed data
-        if 'result_df' in st.session_state and not st.session_state.result_df.empty and st.session_state.get('sessions_filled', False):
-            st.markdown("---")
-            st.subheader("📊 Step 5: Review & Export Data")
-            
+        if 'result_df' in st.session_state and not st.session_state.result_df.empty:
             result_df = st.session_state.result_df
             processed_files = st.session_state.processed_files
             
