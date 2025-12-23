@@ -362,6 +362,43 @@ class SBProcessor:
             
         except Exception as e:
             raise Exception(f"Error uploading to Google Sheets: {e}")
+        
+def detect_missing_sessions_days(df: pd.DataFrame) -> List[pd.Timestamp]:
+    """
+    Detect days where ALL rows of that date have missing or zero Sessions
+    """
+    if 'Date' not in df.columns or 'Sessions' not in df.columns:
+        return []
+
+    df_temp = df.copy()
+    df_temp['Date'] = pd.to_datetime(df_temp['Date'])
+    df_temp['Sessions'] = pd.to_numeric(df_temp['Sessions'], errors='coerce')
+
+    missing_days = []
+
+    for date, g in df_temp.groupby(df_temp['Date'].dt.date):
+        if g['Sessions'].isna().all() or (g['Sessions'].fillna(0) == 0).all():
+            missing_days.append(date)
+
+    return sorted(missing_days)
+
+def fill_sessions_to_last_row(df: pd.DataFrame, date, total_sessions):
+    """
+    Write total_sessions into Sessions column of the LAST row of a given date
+    """
+    df = df.copy()
+    df['Date'] = pd.to_datetime(df['Date'])
+
+    mask = df['Date'].dt.date == date
+    idx_list = df[mask].index.tolist()
+
+    if not idx_list:
+        return df
+
+    last_idx = idx_list[-1]
+    df.loc[last_idx, 'Sessions'] = total_sessions
+
+    return df
 
 def load_credentials_from_file(uploaded_file):
     """Load Google Sheets credentials from uploaded JSON file"""
@@ -535,7 +572,38 @@ def sellerboard_page():
                 st.caption(f"Showing 8 of {len(result_df.columns)} columns. Enable 'All columns' to see more.")
             
             st.markdown("---")
-            
+           
+            st.subheader("🧮 Step 4.1: Detect & Fill Missing Sessions")
+
+            missing_days = detect_missing_sessions_days(result_df)
+
+            if not missing_days:
+                st.success("✅ All days already have Sessions data")
+            else:
+                st.warning(f"⚠️ Detected {len(missing_days)} day(s) missing Sessions")
+
+                st.markdown("### 📅 Missing Sessions Days")
+                session_inputs = {}
+
+                for d in missing_days:
+                    session_inputs[d] = st.number_input(
+                        f"Total Sessions for {d.strftime('%d/%m/%Y')}",
+                        min_value=0,
+                        step=100,
+                        key=f"sessions_{d}"
+                    )
+
+                if st.button("✅ Apply Sessions Data", use_container_width=True):
+                    updated_df = result_df.copy()
+
+                    for d, val in session_inputs.items():
+                        if val > 0:
+                            updated_df = fill_sessions_to_last_row(updated_df, d, val)
+
+                    st.session_state.result_df = updated_df
+
+                    st.success("🎯 Sessions data has been successfully updated!")
+
             # Export section
             st.markdown("### 📤 Export Options")
             
