@@ -19,7 +19,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Suppress warnings
 warnings.filterwarnings('ignore', category=FutureWarning)
-warnings.filterwarnings('ignore', category=pd.errors.SettingWithCopyWarning)
+from pandas.errors import SettingWithCopyWarning
+
+warnings.filterwarnings(
+    'ignore',
+    category=SettingWithCopyWarning
+)
 
 class SBProcessor:
     """Sellerboard Data Processor - Optimized Version"""
