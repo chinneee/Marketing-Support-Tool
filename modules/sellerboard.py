@@ -451,7 +451,7 @@ def sellerboard_page():
     
     sheet_id = st.text_input(
         "Google Sheet ID",
-        value="1b9gXvoAaoPqY4HGxAmnOpyv1pujnT9enYpshz90PyJs",
+        value="1r6bWx_JlvEPn_YYszN8y6Wc8Q6Vm5FE-56aLHXhMSZk",
         help="Find this in your Google Sheet URL: docs.google.com/spreadsheets/d/{SHEET_ID}/edit"
     )
     
