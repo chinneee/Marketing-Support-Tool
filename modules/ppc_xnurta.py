@@ -21,23 +21,8 @@ class PPCProcessor:
         self.credentials_dict = credentials_dict
         self.sheet_id = sheet_id
         self.market = market
-        self.worksheet_name = f"Raw_XN_Q4_2025_{market}"
-        
-        # Define standard columns
-        self.required_columns = [
-            'ASIN', 'Date', 'Campaign type', 'Campaign', 'Status', 'Country', 'Portfolio',
-            'Daily budget', 'Bidding strategy', 'Top-of-search IS', 'Avg.time in budget',
-            'Impressions', 'Clicks', 'CTR', 'Spend', 'CPC', 'Orders', 'Sales', 'Units', 'CVR'
-        ]
-        
-        # Columns to drop
-        self.columns_to_drop = [
-            'Profile', 'Labels', 'Budget group', 'ACOS', 'ROAS', 'CPA', 
-            'Sales Same SKU', 'Sales Other SKU', 'Orders Same SKU', 'Orders Other SKU', 
-            'Units Same SKU', 'Units Other SKU', 'Target type', 'Current Budget', 
-            'SP Off-site Ads Strategy'
-        ]
-        
+        self.worksheet_name = f"Copy of Raw_XN_Q4_2025_{market}"
+
         self.client = None
         self.spreadsheet = None
         self.worksheet = None
@@ -68,32 +53,7 @@ class PPCProcessor:
                     
         except Exception as e:
             raise Exception(f"Error initializing Google Sheets: {e}")
-    
-    def extract_date_from_filename(self, filename):
-        """Extract date from filename with multiple patterns"""
-        patterns = [
-            r'SA_Campaign_List_(\d{8})_\d{8}_.*\.xlsx',
-            r'(\d{8})',
-            r'(\d{2}_\d{2}_\d{4})',
-            r'(\d{4}-\d{2}-\d{2})',
-        ]
-        
-        for pattern in patterns:
-            match = re.search(pattern, filename)
-            if match:
-                date_str = match.group(1)
-                try:
-                    if '_' in date_str:
-                        return pd.to_datetime(date_str, format='%d_%m_%Y')
-                    elif '-' in date_str:
-                        return pd.to_datetime(date_str, format='%Y-%m-%d')
-                    else:
-                        return pd.to_datetime(date_str, format='%Y%m%d')
-                except:
-                    continue
-        
-        return pd.to_datetime(datetime.now().date())
-    
+
     def safe_extract_asin_from_portfolio(self, portfolio_str):
         """Extract ASIN from Portfolio string"""
         if pd.isna(portfolio_str) or portfolio_str == '':
@@ -122,160 +82,7 @@ class PPCProcessor:
             return portfolio_str
         except Exception as e:
             return portfolio_str
-    
-    def safe_normalize_campaign_types(self, text):
-        """Normalize campaign type keywords"""
-        if pd.isna(text) or text == '':
-            return text
-        
-        try:
-            text = str(text)
-            normalizations = {
-                'sponsoredBrands': 'SB',
-                'sponsoredDisplay': 'SD', 
-                'sponsoredProducts': 'SP',
-                'sponsoredbrands': 'SB',
-                'sponsoreddisplay': 'SD',
-                'sponsoredproducts': 'SP',
-                'Sponsored Brands': 'SB',
-                'Sponsored Display': 'SD',
-                'Sponsored Products': 'SP'
-            }
-            
-            for original, normalized in normalizations.items():
-                text = text.replace(original, normalized)
-            
-            return text
-        except Exception as e:
-            return text
-    
-    def safe_clean_currency_column(self, column):
-        """Remove $ symbol and convert to float"""
-        if column.dtype == 'object':
-            try:
-                cleaned = column.astype(str).str.replace(r'[C$,]', '', regex=True)
-                cleaned = cleaned.replace(['', 'nan', 'NaN', '--', 'N/A'], np.nan)
-                result = pd.to_numeric(cleaned, errors='coerce')
-                return result
-            except:
-                return column
-        return column
-    
-    def safe_convert_to_float(self, column):
-        """Convert to float"""
-        if column.dtype == 'object':
-            try:
-                cleaned = column.astype(str).str.replace(r'[%,]', '', regex=True)
-                cleaned = cleaned.replace(['', 'nan', 'NaN', '--', 'N/A'], np.nan)
-                result = pd.to_numeric(cleaned, errors='coerce')
-                return result
-            except:
-                return column
-        return column
-    
-    def safe_convert_to_int(self, column):
-        """Convert to int"""
-        if column.dtype == 'object':
-            try:
-                cleaned = column.astype(str).str.replace(r'[,]', '', regex=True)
-                cleaned = cleaned.replace(['', 'nan', 'NaN', '--', 'N/A'], np.nan)
-                float_col = pd.to_numeric(cleaned, errors='coerce')
-                return float_col.astype('Int64')
-            except:
-                return column
-        return column
-    
-    def process_single_excel(self, file_content, filename):
-        """Process a single Excel file"""
-        try:
-            df = pd.read_excel(io.BytesIO(file_content))
-            df = df.dropna(axis=0, how='all').dropna(axis=1, how='all').copy()
-            
-            df.columns = [str(col).strip() for col in df.columns]
-            date_extracted = self.extract_date_from_filename(filename)
-            
-            existing_columns_to_drop = [col for col in self.columns_to_drop if col in df.columns]
-            if existing_columns_to_drop:
-                df = df.drop(columns=existing_columns_to_drop)
-            
-            if 'Portfolio' in df.columns:
-                asin_values = df['Portfolio'].apply(self.safe_extract_asin_from_portfolio)
-            else:
-                asin_values = [None] * len(df)
-            
-            if 'Campaign type' in df.columns:
-                df['Campaign type'] = df['Campaign type'].apply(self.safe_normalize_campaign_types)
-            
-            currency_columns = ['Daily budget', 'Spend', 'Sales']
-            for col in currency_columns:
-                if col in df.columns:
-                    df[col] = self.safe_clean_currency_column(df[col])
-            
-            float_columns = ['Avg.time in budget', 'Top-of-search IS', 'CPC', 'CVR', 'CTR']
-            for col in float_columns:
-                if col in df.columns:
-                    df[col] = self.safe_convert_to_float(df[col])
-            
-            int_columns = ['Impressions', 'Clicks', 'Orders', 'Units']
-            for col in int_columns:
-                if col in df.columns:
-                    df[col] = self.safe_convert_to_int(df[col])
-            
-            ordered_df = pd.DataFrame()
-            ordered_df['ASIN'] = asin_values
-            ordered_df['Date'] = [date_extracted] * len(df)
-            
-            for col in self.required_columns[2:]:
-                if col in df.columns:
-                    ordered_df[col] = df[col]
-                else:
-                    ordered_df[col] = np.nan
-            
-            return ordered_df
-            
-        except Exception as e:
-            st.error(f"⚠️ Error processing {filename}: {e}")
-            return pd.DataFrame()
-    
-    def process_files(self, uploaded_files):
-        """Process multiple uploaded files"""
-        all_dataframes = []
-        processed_files = []
-        
-        for uploaded_file in uploaded_files:
-            file_content = uploaded_file.read()
-            df = self.process_single_excel(file_content, uploaded_file.name)
-            if not df.empty:
-                all_dataframes.append(df)
-                processed_files.append(uploaded_file.name)
-        
-        if all_dataframes:
-            non_empty_dataframes = [df for df in all_dataframes if not df.empty and len(df) > 0]
-            
-            if non_empty_dataframes:
-                merged_df = pd.concat(non_empty_dataframes, ignore_index=True, sort=False)
-                
-                if 'ASIN' in merged_df.columns and 'Campaign' in merged_df.columns and 'Date' in merged_df.columns:
-                    original_rows = len(merged_df)
-                    merged_df = merged_df.drop_duplicates(subset=['ASIN', 'Date', 'Campaign'], keep='last')
-                    removed = original_rows - len(merged_df)
-                    if removed > 0:
-                        st.info(f"🔄 Removed {removed} duplicate rows")
-                
-                try:
-                    if 'Date' in merged_df.columns and 'Sales' in merged_df.columns:
-                        merged_df = merged_df.sort_values(['Date', 'Sales'], ascending=[True, False])
-                    elif 'Date' in merged_df.columns:
-                        merged_df = merged_df.sort_values('Date')
-                except:
-                    pass
-                
-                return merged_df, processed_files
-            else:
-                return pd.DataFrame(), []
-        else:
-            return pd.DataFrame(), []
-    
+
     def get_existing_sheet_data_count(self):
         """Get current number of rows in the sheet"""
         try:
@@ -376,7 +183,7 @@ def ppc_xnurta_page():
     
     sheet_id = st.text_input(
         "Google Sheet ID",
-        value="1b9gXvoAaoPqY4HGxAmnOpyv1pujnT9enYpshz90PyJs",
+        value="1r6bWx_JlvEPn_YYszN8y6Wc8Q6Vm5FE-56aLHXhMSZk",
         help="Find this in your Google Sheet URL"
     )
     
@@ -416,7 +223,7 @@ def ppc_xnurta_page():
     
     uploaded_files = st.file_uploader(
         "Upload Excel files (DD_MM_YYYY format in filename)",
-        type=['xlsx'],
+        type=['xlsx', 'xls'],
         accept_multiple_files=True,
         key="ppc_uploader",
         help="Files are processed automatically upon upload"
