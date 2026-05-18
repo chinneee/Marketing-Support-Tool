@@ -516,6 +516,49 @@ def sellerboard_page():
                 try:
                     processor = SBProcessor(credentials_dict, sheet_id, selected_market)
                     result_df, processed_files = processor.process_files(uploaded_files)
+
+                    # ================================
+                    # Filter only ASINs from ASIN.txt
+                    # ================================
+                    asin_file_path = "ASIN.txt"
+
+                    if os.path.exists(asin_file_path):
+
+                        with open(asin_file_path, "r", encoding="utf-8") as f:
+                            asin_list = [
+                                line.strip().upper()
+                                for line in f.readlines()
+                                if line.strip()
+                            ]
+
+                        # Detect ASIN column automatically
+                        asin_col = None
+                        for col in result_df.columns:
+                            if "asin" in col.lower():
+                                asin_col = col
+                                break
+
+                        if asin_col:
+                            before_rows = len(result_df)
+
+                            result_df[asin_col] = result_df[asin_col].astype(str).str.upper()
+
+                            result_df = result_df[
+                                result_df[asin_col].isin(asin_list)
+                            ]
+
+                            after_rows = len(result_df)
+
+                            st.info(
+                                f"🎯 Filtered ASINs from ASIN.txt | "
+                                f"{before_rows:,} → {after_rows:,} rows"
+                            )
+
+                        else:
+                            st.warning("⚠️ No ASIN column detected in dataset")
+
+                    else:
+                        st.warning("⚠️ ASIN.txt file not found")
                     
                     processing_time = time.time() - start_time
                     
@@ -573,46 +616,7 @@ def sellerboard_page():
             
             st.markdown("---")
            
-            st.subheader("🔍 Step 4.0: Filter by ASIN List")
-
-            try:
-                with open("ASIN.txt", "r", encoding="utf-8") as f:
-                    asin_list = [line.strip().upper() for line in f if line.strip()]
-
-                asin_col = next((col for col in result_df.columns if "asin" in col.lower()), None)
-
-                if asin_col is None:
-                    st.error("❌ Cannot find ASIN column in data.")
-                else:
-                    total_before = len(result_df)
-                    matched = result_df[result_df[asin_col].str.upper().isin(asin_list)]
-                    total_after = len(matched)
-                    not_found = set(asin_list) - set(result_df[asin_col].str.upper().unique())
-
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.metric("📊 Rows Before", f"{total_before:,}")
-                    with col2:
-                        st.metric("✅ Matched Rows", f"{total_after:,}")
-                    with col3:
-                        st.metric("❓ ASINs Not Found", len(not_found))
-
-                    if not_found:
-                        with st.expander(f"⚠️ {len(not_found)} ASINs not found in data"):
-                            st.write(sorted(not_found))
-
-                    if st.button("✅ Apply ASIN Filter", use_container_width=True, type="primary"):
-                        if total_after == 0:
-                            st.error("❌ No rows matched. Filter not applied.")
-                        else:
-                            st.session_state.result_df = matched.reset_index(drop=True)
-                            result_df = st.session_state.result_df
-                            st.success(f"🎯 Filtered! Kept {total_after:,} / {total_before:,} rows.")
-                            st.rerun()
-
-            except FileNotFoundError:
-                st.error("❌ ASIN.txt not found. Please place it in the same folder as the app.")
-
+        
             st.subheader("🧮 Step 4.1: Detect & Fill Missing Sessions")
 
             missing_days = detect_missing_sessions_days(result_df)
